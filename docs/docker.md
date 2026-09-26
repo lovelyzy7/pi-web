@@ -314,6 +314,19 @@ docker rm -f pi-web
 docker run -d ... # 与首次启动相同的参数
 ```
 
+### 7.1.x pi agent：安装 / 更新 pi CLI
+
+设置 → 更新 → **Pi Agent** 卡片管理两样东西，它们都叫"pi agent"，但更新方式不同：
+
+- **运行时（会话实际使用）**：随 Pi Web 构建固定的 SDK（`@earendil-works/pi-coding-agent`），**跟着应用一起更新**（重建镜像 / 容器内自更新 / npm 重装），面板只显示版本与最新版，不单独热更 —— 单独换 SDK 可能改变会话格式与提示词行为。
+- **pi CLI**：面板的「安装 pi CLI」会把 CLI 装进**数据目录** `~/.pi/agent/pi-cli/`（就是挂载卷，重建容器不丢），并尽量在 `/usr/local/bin/pi` 放一个符号链接，之后 `docker exec -it pi-web pi` 可用。Docker 部署时面板还会显示**宿主机**的命令 —— 容器内无法替宿主机操作：
+
+```bash
+npm install -g @earendil-works/pi-coding-agent@latest   # 在宿主机上执行
+```
+
+检测顺序：PATH 上的 `pi` → 应用自带的 `node_modules/.bin/pi` → 数据目录里的安装；「更新 pi CLI」在版本落后于 npm 最新版时可用。CLI 更新不影响运行中会话（会话用的是运行时 SDK）。
+
 ### 7.2 容器内更新（可选，不重建容器）
 
 设置 `PI_WEB_ALLOW_SELF_UPDATE=1` 后，「更新」页面会出现「在容器内更新」按钮：

@@ -336,6 +336,17 @@ pi 内置的模型列表在 SDK 构建时生成，而 pi-web 固定一个 SDK �
 - **Pages 默认未创建**：`/repos/{owner}/{repo}/pages` 返回 404，`actions/deploy-pages` 会以 "Get Pages site failed" 失败。`demo-pages.yml` 用 `actions/configure-pages@v5` 的 `enablement: true` 让第一次运行自动建站，因此工作流必须声明 `pages: write` + `id-token: write`（只有 `contents: read` 时 `configure-pages` 自己就会 403「Resource not accessible by integration」）。
 - `ci.yml` 的 lint 步骤是 `npx eslint . --max-warnings 0`：仓库现在是 0 warning，这条能在 CI 里挡住遗留的未使用 import（本地 `npm run lint` 不会因为 warning 失败，曾因此漏过一个）。
 
+### Pi Agent 的安装/更新（设置 → 更新分区）
+- **两个东西都叫 pi agent，别混**：**运行时** = `@earendil-works/pi-coding-agent` SDK，会话实际用它，随 pi-web 发布更新，面板只显示版本与 npm 最新版（`lib/pi-agent.ts` 的 `fetchPiLatestVersion`，缓存于 `update_checks` 表 6 小时），**绝不热更** —— pi 0.86 就改过提示词与会话格式，单独换 SDK 会坏。
+- **CLI** = 终端里敲的 `pi` 命令。`POST /api/updates/pi {action: install|update}` 用 `npm install --prefix ~/.pi/agent/pi-cli …` 装进**数据目录**（挂载卷，重建容器不丢），再往 `/usr/local/bin/pi` 放一个尽力而为的符号链接（非 root 失败就忽略，面板显示真实路径）。检测顺序：PATH → 应用自带 `.bin/pi` → 数据目录；`--version` 读版本，30s 超时。
+- **Docker 部署下宿主机不可达**：GET 返回 `deployment.mode`，是 docker 就附带 `hostCommand`（`npm install -g …`）让面板直接显示"宿主机自己执行"，而不是假装容器能替宿主机安装。
+- 测试注意：`installPiCli` 的 `run`/`buildInvocation`/`linkDir` 都可注入，测试绝不真的跑 npm、绝不碰 `/usr/local/bin`；路由测试通过替换 `globalThis.fetch` 离线断言。真实安装只在手工验证里做（会把 `/usr/local/bin/pi` 指向数据目录 —— 验证完要删）。
+
+### 设置面板：项目闸门与移动端分区
+- **技能/子代理/插件是「按项目」分区**：没有选中项目（全新容器还没有会话）时三个标签禁用 —— 与宿主机有没有 pi agent **无关**。面板在 `!cwd` 时显示 `.settings-project-hint`（原因 + 「创建默认项目」按钮，走 `POST /api/default-cwd` → `onProjectCreated` → AppShell 的 `setNewSessionCwd`），创建后三个分区立即启用。后端同时放宽：`/api/skills` 与 `/api/plugins` 的 GET 在没有 `cwd` 时列出全局范围而不是 400。
+- **`.settings-dialog-main` 是列，不是行**：项目提示条与分区宿主必须上下堆叠。曾经把提示条当行的兄弟放进去，`flex-basis:auto` 让它按未换行的 max-content 排布、再靠 `min-width:0` 收缩——它一宽就把宿主挤成 **0 宽**，账号分区整个不可见。提示条自己还要 `flex: 0 1 auto; min-width: 0`，否则中文段落永远不换行。
+- **账号分区内联子标签不要跟着主标签条隐藏**：≤640px 视口时 `.settings-section-tabs { display:none }` 换成 mobile select —— 但那只是**分区切换器**，账号自己的 `settings-section-tabs-inline` 是唯一导航，必须同块里 `display:flex` 恢复，且基础规则就 `flex-wrap: wrap; row-gap: 4px`（否则 700px 上下的中宽面板会把最后的子分区裁掉）。`components/SettingsPanel.test.mjs` 里有两组断言守住这些。
+
 ### 容器里的「项目目录不存在」与提供方报错
 - **「同路径挂载」是硬约束，不是建议**：会话文件里存的是绝对 cwd，容器里少了这个目录，Agent 无法运行、文件浏览器为空、技能/插件读不到项目范围。实测（`pi-web:latest`，两个同级项目会话）：`-v /home/pi_agent_project:/home/pi_agent_project` → 两个项目都 200；`-v /home/pi_agent_project:/workspace` → 两个都 404（换路径等于没挂）；只挂 `-v …/pi-web:/home/pi_agent_project/pi-web` → 本项目 200、兄弟目录（以及 `<仓库>-worktrees/`）仍 404。所以文档一律要求挂**项目父目录**、路径一字不差、读写挂载。
 - **路由文件只能导出处理函数**：`app/api/.../route.ts` 里多导出一个辅助函数（`export function nearestMissingRoot`），`next build` 的 `.next/types` 检查会报 `Type ... does not satisfy the constraint '{ [x: string]: never }'` 而**构建失败** —— `tsc --noEmit` 看不到这一条（类型在构建时才生成），所以「本地类型检查干净」不代表镜像能构建。辅助函数放 `lib/`（这里是 `lib/missing-path.ts`）。

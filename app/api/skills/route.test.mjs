@@ -55,7 +55,11 @@ test("a readable directory that is not allowed is still refused", async () => {
   assert.equal((await response.json()).error, "Access denied");
 });
 
-test("without a cwd the request is still rejected", async () => {
+test("without a cwd the global scope is listed instead of an error", async () => {
+  // A fresh container has no project yet; the settings section reads fine.
   const response = await route.GET(new Request("http://localhost/api/skills"));
-  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.ok(Array.isArray(body.skills));
+  assert.equal(body.cwdNotice, undefined);
 });

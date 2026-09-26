@@ -26,10 +26,8 @@ export async function GET(req: Request) {
     const scope = await resolveProjectCwd(requested, { allowedRoots: await getAllowedFileRoots() });
     const refusal = projectCwdRefusalStatus(scope.status);
     if (refusal) return NextResponse.json({ error: "Access denied" }, { status: refusal });
-    if (!requested && scope.status === "none") {
-      return NextResponse.json({ error: "cwd required" }, { status: 400 });
-    }
-
+    // No project selected (a fresh container has none): the global scope is the
+    // honest answer, not an error — the panel itself explains the difference.
     const skills = await loadSkillsWithInstallInfo(scope.cwd ?? globalSkillScope());
     return NextResponse.json({ ...skills, cwdNotice: projectCwdNotice(scope) ?? undefined });
   } catch (e) {

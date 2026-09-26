@@ -2550,6 +2550,7 @@ export function AppShell() {
           setModelsRefreshKey((key) => key + 1);
         }}
         onSessionReloaded={() => setSessionKey((key) => key + 1)}
+        onProjectCreated={(createdCwd) => setNewSessionCwd(createdCwd)}
       />
     )}
     {projectTrustDialogOpen && projectTrustCwd && (

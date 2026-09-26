@@ -306,7 +306,6 @@ function readScope(scope: unknown): PluginScope {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const cwd = searchParams.get("cwd");
-  if (!cwd) return NextResponse.json({ error: "cwd required" }, { status: 400 });
 
   try {
     // A project this machine cannot see degrades to the global scope: the
@@ -315,13 +314,14 @@ export async function GET(req: Request) {
     const cwdScope = await resolveProjectCwd(cwd, { allowedRoots: await getAllowedFileRoots() });
     const refusal = projectCwdRefusalStatus(cwdScope.status);
     if (refusal) return NextResponse.json({ error: "Access denied" }, { status: refusal });
-    if (cwdScope.status !== "ok") {
+    if (cwdScope.status !== "ok" || !cwdScope.cwd) {
       return NextResponse.json({
         ...await readPlugins(getAgentDir()),
         cwdNotice: projectCwdNotice(cwdScope) ?? undefined,
       });
     }
-    return NextResponse.json(await readPlugins(cwd));
+    // `ok` guarantees the directory: a missing cwd never reaches the strict read.
+    return NextResponse.json(await readPlugins(cwdScope.cwd));
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

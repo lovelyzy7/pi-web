@@ -176,3 +176,43 @@ test("keeps password authentication to one login field and one settings action",
   assert.match(loginSource, /className="web-login-composer"[\s\S]*?type="password"[\s\S]*?<button type="submit"/);
   assert.match(globalCssSource, /\.web-login-composer \{[\s\S]*?display: flex;[\s\S]*?border-radius: 14px/);
 });
+
+test("project-scoped sections explain themselves when no project is selected", () => {
+  // A fresh container has no sessions, hence no selected project: the three
+  // sections stay grey, and the panel says why instead of leaving it silent.
+  assert.match(panelSource, /settings-project-hint/);
+  const hintRule = (cssSource.match(/\.settings-project-hint \{[^}]*\}/g) ?? []).find((rule) => /flex-wrap: wrap/.test(rule)) ?? "";
+  assert.match(hintRule, /min-width: 0/, "the hint must be shrinkable or it collapses the section host");
+  assert.match(panelSource, /t\("settings\.projectRequiredHint"\)/);
+  assert.match(panelSource, /\/api\/default-cwd/);
+  assert.match(panelSource, /onProjectCreated\?/);
+  assert.match(shellSource, /setNewSessionCwd\(createdCwd\)/);
+  assert.match(shellSource, /onProjectCreated=\{\(createdCwd\) => setNewSessionCwd\(createdCwd\)\}/);
+  for (const locale of ["en", "zh-CN"]) {
+    const messages = locale === "en" ? enSource : zhSource;
+    for (const key of ["settings.projectRequiredHint", "settings.createDefaultProject", "settings.creatingProject"]) {
+      assert.match(messages, new RegExp(`"${key}"`), `${locale} is missing ${key}`);
+    }
+  }
+});
+
+test("the account sub-tab row wraps instead of being clipped", () => {
+  // `.settings-dialog-main` hides the x-axis, so a non-wrapping row loses its
+  // last tabs on mid-width panels; wrap has to be the base state.
+  const blocks = [...cssSource.matchAll(/\.settings-section-tabs-inline \{[^}]*\}/g)].map((m) => m[0]);
+  assert.ok(blocks.some((block) => /flex-wrap: wrap/.test(block) && /row-gap: 4px/.test(block)),
+    "the base rule wraps: " + blocks.join(" | "));
+});
+
+test("the account sub-tabs stay visible on phones", () => {
+  // The ≤700px block hides `.settings-section-tabs` in favour of the section
+  // picker; the account sub-tabs are a *different* navigation and must not
+  // vanish with it — otherwise 密码/两步验证/令牌… become unreachable.
+  // The ≤640px viewport block hides the section tab strip in favour of the
+  // picker; the account sub-tabs must be re-shown in that same block.
+  const at = cssSource.indexOf("@media (max-width: 640px)");
+  assert.notEqual(at, -1);
+  const block = cssSource.slice(at, cssSource.indexOf("@media (display-mode: standalone)"));
+  assert.match(block, /\.settings-section-tabs \{\s*\n\s*display: none;/);
+  assert.match(block, /\.settings-section-tabs-inline \{\s*\n\s*display: flex;/);
+});

@@ -40,6 +40,8 @@ interface Props {
   onSessionReloaded: () => void;
   quoteSelectionEnabled: boolean;
   onQuoteSelectionChange: (enabled: boolean) => void;
+  /** Adopts a freshly created project; AppShell switches to it. */
+  onProjectCreated?: (cwd: string) => void;
 }
 
 export function SettingsSectionIcon({ section, size = 16, strokeWidth = 1.8 }: { section: SettingsSection; size?: number; strokeWidth?: number }) {
@@ -330,9 +332,11 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
   );
 }
 
-export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessionReloaded, quoteSelectionEnabled, onQuoteSelectionChange }: Props) {
+export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessionReloaded, quoteSelectionEnabled, onQuoteSelectionChange, onProjectCreated }: Props) {
   const { t } = useI18n();
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [projectHintError, setProjectHintError] = useState<string | null>(null);
   const [mountedSections, setMountedSections] = useState<ReadonlySet<SettingsSection>>(
     () => new Set([section]),
   );
@@ -366,6 +370,31 @@ export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessi
     setMountedSections((current) => new Set(current).add("general"));
     setLastSettingsSection("general");
   }, [cwd, section]);
+
+  /**
+   * The three project-scoped sections stay grey without a selected project; a
+   * fresh container has none (no sessions yet). This creates ~/pi-cwd-<date>
+   * and hands it back, which is exactly what a first-run container needs.
+   */
+  const createDefaultProject = async () => {
+    if (creatingProject) return;
+    setCreatingProject(true);
+    setProjectHintError(null);
+    try {
+      const response = await fetch("/api/default-cwd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = await response.json().catch(() => ({})) as { cwd?: string; error?: string };
+      if (!response.ok || !body.cwd) throw new Error(body.error ?? `HTTP ${response.status}`);
+      onProjectCreated?.(body.cwd);
+    } catch (error) {
+      setProjectHintError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCreatingProject(false);
+    }
+  };
 
   const activateSection = (nextSection: SettingsSection) => {
     setMountedSections((current) => new Set(current).add(nextSection));
@@ -430,6 +459,20 @@ export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessi
         </div>
 
         <main className="settings-dialog-main">
+          {!cwd && (
+            <div className="settings-project-hint" role="status" aria-live="polite">
+              <p>{t("settings.projectRequiredHint")}</p>
+              <ConfigButton
+                variant="primary"
+                size="small"
+                disabled={creatingProject}
+                onClick={() => void createDefaultProject()}
+              >
+                {creatingProject ? t("settings.creatingProject") : t("settings.createDefaultProject")}
+              </ConfigButton>
+              {projectHintError && <p className="is-error">{projectHintError}</p>}
+            </div>
+          )}
           {sectionHost("general", <GeneralSettings sessionId={sessionId} onSessionReloaded={onSessionReloaded} quoteSelectionEnabled={quoteSelectionEnabled} onQuoteSelectionChange={onQuoteSelectionChange} />)}
           {sectionHost("theme", <ThemeSettings cwd={cwd} />)}
           {sectionHost("account", <AccountSettings embedded />)}

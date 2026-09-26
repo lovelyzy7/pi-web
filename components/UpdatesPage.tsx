@@ -47,6 +47,14 @@ interface PluginUpdate {
   message?: string;
 }
 
+interface PiAgentResponse {
+  runtime: { version: string; latest: string | null; newer: boolean; checkedAt: number | null };
+  cli: { via: "path" | "bundled" | "data-dir" | null; path: string | null; version: string | null };
+  installTarget: string;
+  deployment: { mode: "docker" | "npm" | "source" };
+  hostCommand: string | null;
+}
+
 interface UpdatesResponse {
   app: AppUpdateStatus;
   runtime: { piVersion: string; nodeVersion: string; platform: string };
@@ -68,6 +76,10 @@ export function UpdatesSettings({ embedded = false }: { embedded?: boolean } = {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(null);
+  /** The pi agent: runtime SDK + the pi CLI on this server. */
+  const [piAgent, setPiAgent] = useState<PiAgentResponse | null>(null);
+  const [piBusy, setPiBusy] = useState(false);
+  const [piNotice, setPiNotice] = useState<{ ok: boolean; message: string } | null>(null);
 
   const load = useCallback(async (options: { check?: boolean; plugins?: boolean } = {}) => {
     setLoading(true);
@@ -86,7 +98,46 @@ export function UpdatesSettings({ embedded = false }: { embedded?: boolean } = {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  const loadPi = useCallback(async (check = false) => {
+    try {
+      const response = await fetch(`/api/updates/pi${check ? "?check=1" : ""}`, { headers: { Accept: "application/json" } });
+      const body = await response.json() as PiAgentResponse & { error?: string };
+      if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
+      setPiAgent(body);
+    } catch (cause) {
+      setPiNotice({ ok: false, message: cause instanceof Error ? cause.message : String(cause) });
+    }
+  }, []);
+
+  useEffect(() => { void load(); void loadPi(); }, [load, loadPi]);
+
+  /**
+   * Installs or updates the pi CLI into the data directory. The runtime SDK is
+   * deliberately not touched here — it follows the application.
+   */
+  const installPi = async () => {
+    if (piBusy) return;
+    setPiBusy(true);
+    setPiNotice(null);
+    try {
+      const response = await fetch("/api/updates/pi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: piAgent?.cli?.path ? "update" : "install" }),
+      });
+      const body = await response.json() as { ok?: boolean; path?: string; version?: string | null; message?: string; error?: string };
+      if (!response.ok || !body.ok) {
+        setPiNotice({ ok: false, message: body.message ?? body.error ?? `HTTP ${response.status}` });
+        return;
+      }
+      setPiNotice({ ok: true, message: t("updates.piInstalledAt", { path: body.path ?? "", version: body.version ?? "" }) });
+      await loadPi();
+    } catch (cause) {
+      setPiNotice({ ok: false, message: cause instanceof Error ? cause.message : String(cause) });
+    } finally {
+      setPiBusy(false);
+    }
+  };
 
   const action = async (body: Record<string, unknown>, key: string) => {
     setBusy(key);
@@ -244,6 +295,62 @@ export function UpdatesSettings({ embedded = false }: { embedded?: boolean } = {
           <dd><code>{data?.runtime.platform ?? "…"}</code></dd>
         </dl>
         <p className="settings-general-description">{t("updates.runtimeHint")}</p>
+      </section>
+
+      <section className="settings-general-section">
+        <h3 className="settings-general-heading">{t("updates.piAgentHeading")}</h3>
+        <dl className="settings-definition">
+          <dt>{t("updates.piRuntime")}</dt>
+          <dd>
+            <code>{piAgent?.runtime.version ?? "…"}</code>
+            {piAgent?.runtime.newer && (
+              <span className="settings-chip">{t("updates.piNewer", { version: piAgent.runtime.latest ?? "" })}</span>
+            )}
+          </dd>
+          <dt>{t("updates.piCli")}</dt>
+          <dd>
+            {piAgent?.cli?.path
+              ? <code>{piAgent.cli.path} (v{piAgent.cli.version})</code>
+              : t("updates.piCliMissing")}
+          </dd>
+        </dl>
+        <p className="settings-general-description">
+          {t("updates.piAgentHint", { target: piAgent?.installTarget ?? "" })}
+        </p>
+        {piAgent?.deployment.mode === "docker" && piAgent.hostCommand && (
+          <p className="settings-general-description">
+            {t("updates.piHostNote", { command: piAgent.hostCommand })}
+          </p>
+        )}
+        {piNotice && (
+          <p className={`settings-notice ${piNotice.ok ? "is-ok" : "is-error"}`} role="status" aria-live="polite">
+            {piNotice.message}
+          </p>
+        )}
+        <div className="settings-table-actions">
+          {piAgent?.cli?.path
+            ? (
+              <ConfigButton
+                variant={piAgent.cli.version !== piAgent.runtime.latest && piAgent.runtime.latest ? "primary" : "secondary"}
+                disabled={piBusy || piAgent.cli.version === piAgent.runtime.latest || !piAgent.runtime.latest}
+                onClick={() => void installPi()}
+              >
+                {piBusy
+                  ? t("updates.piUpdating")
+                  : (piAgent.cli.version !== piAgent.runtime.latest && piAgent.runtime.latest)
+                    ? t("updates.piCliUpdate")
+                    : t("updates.piCliUpToDate")}
+              </ConfigButton>
+            )
+            : (
+              <ConfigButton variant="primary" disabled={piBusy} onClick={() => void installPi()}>
+                {piBusy ? t("updates.piInstalling") : t("updates.piCliInstall")}
+              </ConfigButton>
+            )}
+          <ConfigButton variant="ghost" disabled={piBusy} onClick={() => void loadPi(true)}>
+            {t("updates.piCheck")}
+          </ConfigButton>
+        </div>
       </section>
 
       <section className="settings-general-section">
