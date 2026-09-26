@@ -44,9 +44,20 @@ function resolveTheme(preference: ThemePreference): ResolvedTheme {
 
 function applyDomTheme(theme: ResolvedTheme): void {
   if (typeof document === "undefined") return;
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.classList.toggle("dark", isDarkTheme(theme));
+  const root = document.documentElement;
+  if (root.dataset.piTheme === "custom") {
+    // The server picked the base palette for the active theme. A theme with
+    // per-mode variants lets the user's light/dark choice through (the variant
+    // link follows it); one without keeps the server's base.
+    const next = root.dataset.piThemeVariants === "1" ? theme : (root.dataset.theme as ResolvedTheme);
+    if (next) root.dataset.theme = next;
+    root.classList.toggle("dark", isDarkTheme(next ?? theme) || next === "pine");
+    return;
+  }
+  root.dataset.theme = theme;
+  root.classList.toggle("dark", isDarkTheme(theme));
 }
+
 
 function ensureState(): ThemeState {
   if (typeof window === "undefined") return SERVER_SNAPSHOT;

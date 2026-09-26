@@ -22,7 +22,18 @@ async function validateCwd(value: unknown): Promise<
       return { response: NextResponse.json({ error: "cwd must be a directory" }, { status: 400 }) };
     }
   } catch {
-    return { response: NextResponse.json({ error: "Directory does not exist" }, { status: 400 }) };
+    // A project that is not on this machine has no trust to report. Saying so
+    // with a code keeps the AppShell free of console errors for a directory the
+    // container simply does not have.
+    return {
+      response: NextResponse.json({
+        error: "Directory does not exist",
+        code: "cwd_missing",
+        cwd,
+        requiresTrust: false,
+        trusted: false,
+      }, { status: 404 }),
+    };
   }
 
   const allowedRoots = await getAllowedFileRoots();

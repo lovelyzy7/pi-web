@@ -1,86 +1,60 @@
-# Pi Web demo
+# Pi Web 演示
 
-A static, backend-free copy of the Pi Web UI for GitHub Pages. It uses the
-real Pi Web components, and an in-browser mock answers every `/api/*` request
-the UI makes, so visitors can click through sessions, files, models and
-settings without installing anything.
+Pi Web 界面的静态、无后端版本，用于 GitHub Pages。它使用真实的 Pi Web 组件，并由浏览器内的 mock 回应界面发出的每一个 `/api/*` 请求，因此访问者无需安装任何东西就能点开会话、文件、模型与设置。
 
-## What visitors see
+## 访问者能看到什么
 
-- **Sessions**: a set of tutorial conversations (English or Simplified Chinese,
-  following the UI language) that explain the layout, files and `@` mentions,
-  models and reasoning levels, branching, tool calls, skills/plugins/subagents
-  and composer shortcuts. A second project shows project switching and a
-  *Chat only* session.
-- **Files**: the explorer browses a snapshot of this repository. The Welcome
-  session opens `README.md` as a rendered preview on the right, and the
-  tutorial edits show up as Git changes with diffs.
-- **Models**: a signed-in ChatGPT Plus/Pro (Codex) account, a DeepSeek API key
-  and a custom "Claude Gateway" provider from `models.json`, with Codex, Claude
-  and DeepSeek models in the picker.
-- **Interaction**: sending a message streams a canned reply (with a real `read`
-  or `ls` tool call when it fits), and `!command`, the terminal panel, forks,
-  branches, renames and titles all work in memory. Anything that needs a real
-  server (sign-in, installs, uploads) explains that this is a demo.
+- **会话**：一组教学对话（跟随界面语言，英文或简体中文），讲解布局、文件与 `@` 提及、模型与推理等级、分支、工具调用、技能/插件/子代理以及输入框快捷键。第二个项目展示项目切换与一个 *Chat only* 会话。
+- **文件**：资源管理器浏览本仓库的一份快照。Welcome 会话会在右侧以渲染预览打开 `README.md`，教学里的编辑会以带 diff 的 Git 变更出现。
+- **模型**：一个已登录的 ChatGPT Plus/Pro（Codex）账号、一个 DeepSeek API Key，以及来自 `models.json` 的自定义 "Claude Gateway" 提供方，选择器里有 Codex、Claude 与 DeepSeek 模型。
+- **交互**：发送消息会流式返回预置回复（合适时带真实的 `read` 或 `ls` 工具调用），`!command`、终端面板、fork、分支、重命名与标题都在内存中工作。任何需要真实服务端的能力（登录、安装、上传）都会说明这是演示。
 
-## How it works
+## 工作原理
 
 ```text
-app/DemoRoot.tsx        imports mock/install.ts, then renders Pi Web's AppShell
-mock/install.ts         replaces window.fetch (for /api/*) and EventSource
-mock/router.ts          the API routes: sessions, agent, files, git, models, …
-mock/agent.ts           streams replies with pi's SSE event sequence
-mock/sessions/          tutorial scripts, expanded into pi session entries
-mock/captured/          responses recorded from a real Pi Web + pi SDK setup
+app/DemoRoot.tsx        导入 mock/install.ts，然后渲染 Pi Web 的 AppShell
+mock/install.ts         替换 window.fetch（针对 /api/*）与 EventSource
+mock/router.ts          API 路由：sessions、agent、files、git、models 等
+mock/agent.ts           按 pi 的 SSE 事件序列流式输出回复
+mock/sessions/          教学脚本，展开成 pi 会话条目
+mock/captured/          从真实的 Pi Web + pi SDK 环境录制的响应
 scripts/prepare-demo-files.mjs
-                        snapshots the repository into public/demo-files
+                        把本仓库快照进 public/demo-files
 ```
 
-`components/`, `hooks/` and `lib/` are copies of the main project. These files
-differ from their originals:
+`components/`、`hooks/` 与 `lib/` 是主项目的副本。以下文件与原件不同：
 
-| File | Why |
+| 文件 | 原因 |
 | --- | --- |
-| `app/layout.tsx`, `app/page.tsx`, `app/DemoRoot.tsx` | Load the mock, no service worker or manifest |
-| `components/AppShell.tsx` | Open the README preview by default, base-path-safe `router.replace`, in-browser "Full history" |
-| `components/ChatWindow.tsx`, `FileIcons.tsx`, `ProviderIcon.tsx` | Prefix static assets with the Pages base path |
-| `components/FileViewer.tsx`, `FileExplorer.tsx`, `MarkdownBody.tsx` | Load images, media and downloads from the static snapshot |
-| `lib/subagent-extension.ts`, `lib/terminal-manager.ts` | Types only; the originals are server code |
+| `app/layout.tsx`、`app/page.tsx`、`app/DemoRoot.tsx` | 加载 mock，不使用 service worker 或 manifest |
+| `components/AppShell.tsx` | 默认打开 README 预览、对 base path 安全的 `router.replace`、浏览器内的「完整历史」 |
+| `components/ChatWindow.tsx`、`FileIcons.tsx`、`ProviderIcon.tsx` | 给静态资源加上 Pages 的 base path 前缀 |
+| `components/FileViewer.tsx`、`FileExplorer.tsx`、`MarkdownBody.tsx` | 从静态快照加载图片、媒体与下载 |
+| `lib/subagent-extension.ts`、`lib/terminal-manager.ts` | 只有类型；原件是服务端代码 |
 
-To pick up UI changes from the main project, copy the updated files over and
-re-apply the changes above (search for `demo` / `@/mock` in those files).
+要同步主项目的界面改动，请把更新后的文件复制过来并重新套用上面的改动（在这些文件里搜索 `demo` / `@/mock`）。
 
-## Isolation from Pi Web
+## 与 Pi Web 的隔离
 
-The demo never ends up in the app or its npm package:
+演示版永远不会进到应用或其 npm 包里：
 
-- **Not published.** The root `package.json` publishes only the paths in its
-  `files` whitelist, so `npm pack` contains nothing from `demo/`.
-- **Not compiled into the app.** Pi Web imports nothing from `demo/`; the root
-  `tsconfig.json` excludes it and `eslint.config.mjs` ignores it.
-- **Kept out of the app's CSS.** Tailwind scans every file that isn't
-  gitignored, so `app/globals.css` has `@source not "../demo";`. The demo's copy
-  of `globals.css` keeps the same line, where it points at nothing.
-- **Its own CI.** Only `.github/workflows/demo-pages.yml` installs and builds
-  `demo/`.
+- **不发布。**根 `package.json` 只发布 `files` 白名单里的路径，因此 `npm pack` 不会包含 `demo/` 的任何内容。
+- **不编译进应用。**Pi Web 不导入 `demo/` 的任何东西；根 `tsconfig.json` 排除了它，`eslint.config.mjs` 也忽略它。
+- **不进入应用的 CSS。**Tailwind 会扫描所有未被 gitignore 的文件，因此 `app/globals.css` 里有 `@source not "../demo";`。演示版自己的 `globals.css` 副本保留同一行，只是在那里它什么也不指向。
+- **自己的 CI。**只有 `.github/workflows/demo-pages.yml` 会安装并构建 `demo/`。
 
-## Commands
+## 命令
 
 ```bash
 cd demo
 npm install
 npm run dev      # http://127.0.0.1:30142
 npm run lint
-npm run build    # static export in out/
+npm run build    # 静态导出到 out/
 ```
 
-`npm run dev` and `npm run build` first run `scripts/prepare-demo-files.mjs`.
-To preview the build under a sub-path the way GitHub Pages serves it, set
-`PAGES_BASE_PATH=/pi-web` before `npm run build`.
+`npm run dev` 与 `npm run build` 会先执行 `scripts/prepare-demo-files.mjs`。要在子路径下预览构建结果（与 GitHub Pages 的提供方式一致），请在 `npm run build` 之前设置 `PAGES_BASE_PATH=/pi-web`。
 
-## Deployment
+## 部署
 
-`.github/workflows/demo-pages.yml` builds the demo on every push to `main` and
-deploys `out/` to GitHub Pages. Enable Pages once under **Settings → Pages →
-Source: GitHub Actions**; the site is then served at
-`https://<owner>.github.io/<repo>/`.
+`.github/workflows/demo-pages.yml` 在每次推送到 `main` 时构建演示版，并把 `out/` 部署到 GitHub Pages。请在 **Settings → Pages → Source: GitHub Actions** 里启用一次 Pages；站点随后服务于 `https://<owner>.github.io/<repo>/`。

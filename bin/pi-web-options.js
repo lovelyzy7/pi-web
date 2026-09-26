@@ -45,7 +45,10 @@ Environment:
   PI_WEB_HOSTNAME            Default hostname when --hostname is omitted
   PI_WEB_NO_OPEN             Set to 1/true/yes/on to disable browser open
   PI_WEB_PASSWORD            Enable browser password login and API Basic Auth
+                             (instead of the account stored in the database)
   PI_WEB_ALLOWED_HOSTS       Extra exact proxy/custom hostnames, comma-separated
+  PI_WEB_INIT_TOKEN          Pin the first-run setup code shown in the log
+  PI_WEB_SESSION_TTL_MS      Idle session lifetime in ms (default 2592000000)
   PI_WEB_SKIP_VERSION_CHECK  Set to 1 to disable Pi Web update checks
   PI_WEB_IDLE_TIMEOUT_MS     Session idle timeout in ms (0 disables; default 600000)
 `;

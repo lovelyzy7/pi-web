@@ -9,7 +9,8 @@ import {
   type ResolvedPaths,
   type ResolvedResource,
 } from "@earendil-works/pi-coding-agent";
-import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { getAllowedFileRoots } from "@/lib/file-access";
+import { projectCwdNotice, projectCwdRefusalStatus, resolveProjectCwd } from "@/lib/project-cwd";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 import { getProjectTrustStatus } from "@/lib/project-trust";
 import { isPluginSourceCheckable } from "@/lib/plugin-updates";
@@ -308,9 +309,17 @@ export async function GET(req: Request) {
   if (!cwd) return NextResponse.json({ error: "cwd required" }, { status: 400 });
 
   try {
-    const allowedRoots = await getAllowedFileRoots();
-    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    // A project this machine cannot see degrades to the global scope: the
+    // installed packages are the same everywhere, and refusing the request hid
+    // them behind "Access denied".
+    const cwdScope = await resolveProjectCwd(cwd, { allowedRoots: await getAllowedFileRoots() });
+    const refusal = projectCwdRefusalStatus(cwdScope.status);
+    if (refusal) return NextResponse.json({ error: "Access denied" }, { status: refusal });
+    if (cwdScope.status !== "ok") {
+      return NextResponse.json({
+        ...await readPlugins(getAgentDir()),
+        cwdNotice: projectCwdNotice(cwdScope) ?? undefined,
+      });
     }
     return NextResponse.json(await readPlugins(cwd));
   } catch (error) {
@@ -336,9 +345,17 @@ export async function POST(req: Request) {
     };
     if (!body.cwd) return NextResponse.json({ error: "cwd required" }, { status: 400 });
     if (!body.action) return NextResponse.json({ error: "action required" }, { status: 400 });
-    const allowedRoots = await getAllowedFileRoots();
-    if (!isExistingFilePathAllowed(body.cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    // Writes keep the strict rule: installing into a directory that is not here
+    // cannot work, and saying so beats a 403 about permissions.
+    const cwdScope = await resolveProjectCwd(body.cwd, { allowedRoots: await getAllowedFileRoots() });
+    const refusalStatus = projectCwdRefusalStatus(cwdScope.status);
+    if (refusalStatus) return NextResponse.json({ error: "Access denied" }, { status: refusalStatus });
+    if (cwdScope.status !== "ok") {
+      return NextResponse.json({
+        error: `Directory does not exist: ${cwdScope.requested}`,
+        code: "cwd_missing",
+        cwd: cwdScope.requested,
+      }, { status: 409 });
     }
 
     const agentDir = getAgentDir();

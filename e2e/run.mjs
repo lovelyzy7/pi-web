@@ -19,6 +19,8 @@ assert.ok(mode === "dev" || mode === "start", "E2E_SERVER_MODE must be dev or st
 assert.ok(mode !== "dev" || !existsSync(join(root, ".next/dev/lock")), "Use a checkout without an active dev server");
 const artifacts = join(root, "test-results/e2e");
 mkdirSync(artifacts, { recursive: true });
+const E2E_INIT_TOKEN = "E2E-INIT";
+const E2E_PASSWORD = "e2e-account-password";
 const agentDir = mkdtempSync(join(tmpdir(), "pi-web-e2e-"));
 const project = join(agentDir, "project");
 const sessionDir = join(agentDir, "sessions", "e2e");
@@ -134,7 +136,15 @@ try {
   const base = `http://127.0.0.1:${port}`;
   server = spawn(process.execPath, [join(root, "node_modules/next/dist/bin/next"), mode, "-H", "127.0.0.1", "-p", String(port)], {
     cwd: root,
-    env: { ...process.env, PI_CODING_AGENT_DIR: agentDir, PI_WEB_PASSWORD: "", NEXT_TELEMETRY_DISABLED: "1" },
+    env: {
+      ...process.env,
+      PI_CODING_AGENT_DIR: agentDir,
+      // Pi Web now starts in first-run mode: the harness pins the setup code and
+      // completes it below, so the API calls and the browser share one account.
+      PI_WEB_PASSWORD: "",
+      PI_WEB_INIT_TOKEN: E2E_INIT_TOKEN,
+      NEXT_TELEMETRY_DISABLED: "1",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.once("error", (error) => { serverError = error; });
@@ -142,8 +152,18 @@ try {
   server.stdout.pipe(serverLog, { end: false });
   server.stderr.pipe(serverLog, { end: false });
 
+  /** Set once the account exists; every request and the browser context use it. */
+  let sessionCookie = null;
+
+  function authHeaders(extra = {}) {
+    return sessionCookie ? { Cookie: sessionCookie, ...extra } : extra;
+  }
+
   async function api(path, status = 200) {
-    const response = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(30_000) });
+    const response = await fetch(`${base}${path}`, {
+      headers: authHeaders(),
+      signal: AbortSignal.timeout(30_000),
+    });
     assert.equal(response.status, status, path);
     return response.json();
   }
@@ -151,7 +171,7 @@ try {
   async function post(path, body) {
     const response = await fetch(`${base}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(60_000),
     });
@@ -159,13 +179,33 @@ try {
     return response.json();
   }
 
+  /**
+   * First-run setup. Pi Web refuses API access until an account exists, so the
+   * harness creates one with the pinned setup code and keeps the session cookie
+   * for both the HTTP helpers and the browser context.
+   */
+  async function createAccount() {
+    const response = await fetch(`${base}/api/web-auth/init`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Host: `127.0.0.1:${port}` },
+      body: JSON.stringify({ password: E2E_PASSWORD, setupCode: E2E_INIT_TOKEN }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    assert.ok(response.ok, `POST /api/web-auth/init -> ${response.status}`);
+    const cookie = response.headers.get("set-cookie");
+    assert.ok(cookie, "first-run setup must return a session cookie");
+    sessionCookie = cookie.split(";", 1)[0];
+  }
+
   const deadline = Date.now() + 120_000;
   while (true) {
     if (serverError) throw serverError;
     assert.equal(server.exitCode, null, "Server exited before readiness; see server.log");
-    const response = await fetch(`${base}/api/sessions`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
-    if (response?.ok) {
-      const { sessions } = await response.json();
+    // Any answer means the server is up; before setup every API route answers 401.
+    const response = await fetch(`${base}/api/web-auth`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
+    if (response) {
+      await createAccount();
+      const { sessions } = await api("/api/sessions");
       assert.deepEqual(sessions.map((session) => session.id).sort(), [LONG, BRANCH, RICH, COMPACTED, APPEND].sort());
       break;
     }
@@ -221,6 +261,10 @@ try {
   browser = await chromium.launch();
   for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
     context = await browser.newContext({ viewport, locale: "en-US" });
+    if (sessionCookie) {
+      const [name, value] = sessionCookie.split("=", 2);
+      await context.addCookies([{ name, value, url: base, httpOnly: true, sameSite: "Lax" }]);
+    }
     await context.tracing.start({ screenshots: true, snapshots: true });
     page = await context.newPage();
     page.setDefaultTimeout(30_000);

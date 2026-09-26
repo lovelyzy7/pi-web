@@ -1,6 +1,6 @@
 # Pi Web
 
-[English](./README.md) | [简体中文](./README.zh-CN.md) | [Русский](./README.ru.md)
+[中文](./README.md) | [English](./README.en.md) | [Русский](./README.ru.md)
 
 [pi コーディングエージェント](https://github.com/earendil-works/pi) のローカルブラウザー UI です。Pi Web は pi と同じローカル設定とセッションファイルを使用し、ブラウザーから会話の検索と再開、エージェントの実行、モデルやリソースの設定、プロジェクトファイルの確認を行えます。
 

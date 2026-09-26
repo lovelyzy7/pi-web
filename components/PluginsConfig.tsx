@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sendAgentCommand } from "@/lib/agent-client";
 import type { PluginPackageInfo, PluginStandaloneExtensionInfo, PluginUpdateResult, PluginsResponse } from "@/lib/api-types";
 import { useI18n } from "@/hooks/useI18n";
+import type { CwdNotice } from "@/lib/cwd-notice";
 import {
   getLastSettingsSelection,
   setLastSettingsSelection,
@@ -90,9 +91,9 @@ function findInstalledPackage(
 
 function statusColor(status: PluginPackageInfo["status"]): string {
   if (status === "loaded") return "var(--accent)";
-  if (status === "installed") return "#f59e0b";
+  if (status === "installed") return "var(--warning)";
   if (status === "disabled") return "var(--text-dim)";
-  return "#ef4444";
+  return "var(--danger)";
 }
 
 function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
@@ -261,6 +262,7 @@ function AddPluginPanel({
   onSourceChange,
   onScopeChange,
   onInstall,
+  onOpenSection,
 }: {
   cwd: string;
   source: string;
@@ -271,6 +273,7 @@ function AddPluginPanel({
   onSourceChange: (value: string) => void;
   onScopeChange: (scope: PluginScope) => void;
   onInstall: () => void;
+  onOpenSection?: (section: "market") => void;
 }) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -285,10 +288,9 @@ function AddPluginPanel({
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <ConfigDetailTitle>{t("i18n.addPlugin")}</ConfigDetailTitle>
-          <a
-            href="https://pi.dev/packages"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => onOpenSection?.("market")}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -299,16 +301,8 @@ function AddPluginPanel({
               whiteSpace: "nowrap",
             }}
           >
-            <svg width="28" height="28" viewBox="0 0 800 800" aria-hidden="true" focusable="false" style={{ flexShrink: 0 }}>
-              <path
-                fill="#000"
-                fillRule="evenodd"
-                d="M165.29 165.29H517.36V400H400V517.36H282.65V634.72H165.29ZM282.65 282.65V400H400V282.65Z"
-              />
-              <path fill="#000" d="M517.36 400H634.72V634.72H517.36Z" />
-            </svg>
-            pi.dev/packages
-          </a>
+            {t("market.open")}
+          </button>
         </div>
         <div style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
           {installLocation(scope, cwd)}
@@ -403,7 +397,7 @@ function AddPluginPanel({
       </div>
 
       {actionError && (
-        <div style={{ fontSize: 12, color: "#ef4444", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: 12, color: "var(--danger)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -471,7 +465,7 @@ function PackageDetail({
                 padding: "1px 5px",
                 borderRadius: 3,
                 background: "rgba(245,158,11,0.12)",
-                color: "#d97706",
+                color: "var(--warning)",
               }}
             >
               {t("i18n.filtered")}
@@ -583,7 +577,7 @@ function PackageDetail({
             )}
           </div>
           {updateError && (
-            <span style={{ fontSize: 12, color: "#ef4444" }}>{updateError}</span>
+            <span style={{ fontSize: 12, color: "var(--danger)" }}>{updateError}</span>
           )}
         </div>
         <div style={{ color: "var(--text-dim)" }}>{t("i18n.package")}</div>
@@ -595,7 +589,7 @@ function PackageDetail({
         <div style={{ color: "var(--text-dim)" }}>{t("i18n.installedPath")}</div>
         <div
           style={{
-            color: pkg.installedPath ? "var(--text-muted)" : "#ef4444",
+            color: pkg.installedPath ? "var(--text-muted)" : "var(--danger)",
             fontFamily: "var(--font-mono)",
             overflowWrap: "anywhere",
           }}
@@ -614,12 +608,12 @@ function PackageDetail({
       </div>
 
       {actionMessage && (
-        <div style={{ fontSize: 12, color: "#16a34a" }}>
+        <div style={{ fontSize: 12, color: "var(--success)" }}>
           {actionMessage}
         </div>
       )}
       {actionError && (
-        <div style={{ fontSize: 12, color: "#ef4444", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: 12, color: "var(--danger)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -664,18 +658,23 @@ export function PluginsConfig({
   sessionId,
   onClose,
   onReloaded,
+  onOpenSection,
   embedded = false,
 }: {
   cwd: string;
   sessionId: string | null;
   onClose: () => void;
   onReloaded?: () => void;
+  /** Switch the settings panel to another section (the marketplace lives there). */
+  onOpenSection?: (section: "market") => void;
   embedded?: boolean;
 }) {
   const { t } = useI18n();
   const [data, setData] = useState<PluginsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** Set when the server listed the global scope only (project not on this host). */
+  const [cwdNotice, setCwdNotice] = useState<CwdNotice | null>(null);
   const [selected, setSelected] = useState<string | null>(() => getLastSettingsSelection("plugins", cwd));
   const [addMode, setAddMode] = useState(false);
   const [installSource, setInstallSource] = useState("");
@@ -706,8 +705,9 @@ export function PluginsConfig({
     setError(null);
     try {
       const res = await fetch(`/api/plugins?cwd=${encodeURIComponent(cwd)}`);
-      const next = (await res.json()) as PluginsResponse & { error?: string };
+      const next = (await res.json()) as PluginsResponse & { error?: string; cwdNotice?: CwdNotice };
       if (!res.ok || next.error) throw new Error(next.error ?? `HTTP ${res.status}`);
+      setCwdNotice(next.cwdNotice ?? null);
       setData(next);
       setAddMode((current) => (next.packages.length === 0 && next.standaloneExtensions.length === 0) || current);
       setSelected((current) => {
@@ -791,8 +791,9 @@ export function PluginsConfig({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update", cwd }),
       });
-      const next = (await res.json()) as PluginsResponse & { error?: string };
+      const next = (await res.json()) as PluginsResponse & { error?: string; cwdNotice?: CwdNotice };
       if (!res.ok || next.error) throw new Error(next.error ?? `HTTP ${res.status}`);
+      setCwdNotice(next.cwdNotice ?? null);
       setData(next);
       setUpdateStatuses({});
       setActionMessage(t("i18n.packagesUpdated"));
@@ -817,8 +818,9 @@ export function PluginsConfig({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, source: pkg.source, scope: pkg.scope, cwd }),
       });
-      const next = (await res.json()) as PluginsResponse & { error?: string };
+      const next = (await res.json()) as PluginsResponse & { error?: string; cwdNotice?: CwdNotice };
       if (!res.ok || next.error) throw new Error(next.error ?? `HTTP ${res.status}`);
+      setCwdNotice(next.cwdNotice ?? null);
       setData(next);
       if (action === "remove") {
         setSelected(next.packages[0]
@@ -870,8 +872,9 @@ export function PluginsConfig({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "install", source, scope: installScope, cwd }),
       });
-      const next = (await res.json()) as PluginsResponse & { error?: string };
+      const next = (await res.json()) as PluginsResponse & { error?: string; cwdNotice?: CwdNotice };
       if (!res.ok || next.error) throw new Error(next.error ?? `HTTP ${res.status}`);
+      setCwdNotice(next.cwdNotice ?? null);
       setData(next);
       const installed = findInstalledPackage(next.packages, source, installScope);
       setSelected(installed ? packageKey(installed) : key);
@@ -917,6 +920,8 @@ export function PluginsConfig({
             {t("trust.pluginsNotLoaded")}
           </div>
         )}
+
+        <ProjectCwdNoticeLine notice={cwdNotice} />
 
         <ConfigSplitView>
           <ConfigSidebar>
@@ -1023,6 +1028,7 @@ export function PluginsConfig({
                 onSourceChange={setInstallSource}
                 onScopeChange={setInstallScope}
                 onInstall={installPlugin}
+                onOpenSection={onOpenSection}
               />
             ) : loading ? null : selectedExtension ? (
               <StandaloneExtensionDetail extension={selectedExtension} />
@@ -1058,7 +1064,7 @@ export function PluginsConfig({
             ) : data?.diagnostics.length ? (
               <span
                 title={data.diagnostics.map((d) => `${d.type}: ${d.source ? `${d.source}: ` : ""}${d.message}`).join("\n")}
-                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "#ef4444" : "#d97706" }}
+                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "var(--danger)" : "var(--warning)" }}
               >
                 {data.diagnostics.length} diagnostic{data.diagnostics.length === 1 ? "" : "s"}
               </span>
@@ -1090,5 +1096,20 @@ export function PluginsConfig({
           </ConfigButton>
         </ConfigFooter>
     </ConfigPanelShell>
+  );
+}
+
+/**
+ * The selected project is not on this machine (usually a container without that
+ * project mounted). The global skills and packages are still listed, so this is
+ * a notice next to them, not an error that replaces them.
+ */
+function ProjectCwdNoticeLine({ notice }: { notice: CwdNotice | null }) {
+  const { t } = useI18n();
+  if (!notice) return null;
+  return (
+    <div role="status" className="config-trust-notice">
+      {t("settings.cwdNotice", { path: notice.requested })}
+    </div>
   );
 }

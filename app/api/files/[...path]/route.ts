@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { nearestMissingRoot } from "@/lib/missing-path";
 import {
   getAllowedFileRoots,
   isExistingFilePathAllowed,
@@ -444,7 +445,24 @@ export async function GET(
       stat = fs.statSync(filePath);
     } catch {
       if (type !== "watch") {
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
+        // Distinguish "this directory is not on this machine" (a container
+        // without the project mounted) from "this file is not here": the sidebar
+        // shows the reason instead of a bare "Not found".
+        // `path` is what the sidebar asked for (the project it names in the
+        // message); `missingRoot` says where the tree stops existing, which is
+        // the mount point when several levels are gone.
+        const missingRoot = type === "list" ? nearestMissingRoot(filePath) : null;
+        return NextResponse.json(
+          missingRoot
+            ? {
+                error: `Directory does not exist: ${filePath}`,
+                code: "cwd_missing",
+                path: filePath,
+                missingRoot,
+              }
+            : { error: "Not found" },
+          { status: 404 },
+        );
       }
     }
 

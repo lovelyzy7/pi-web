@@ -10,14 +10,19 @@ const jiti = createJiti(import.meta.url, {
   moduleCache: false,
 });
 const { GET, POST, DELETE } = await jiti.import("./route.ts");
-const { recordAuthSuccess } = await import("../../../lib/auth-throttle.ts");
+const { openDatabase, installDatabaseForTests } = await jiti.import("../../../lib/db.ts");
+const { resetAuthThrottle } = await jiti.import("../../../lib/auth-throttle-store.ts");
+
+// Throttle counters are persisted; the credentials still come from the environment.
+const db = openDatabase(":memory:");
+installDatabaseForTests(db);
 
 before(() => { process.env.PI_WEB_PASSWORD = "correct horse battery staple"; });
-beforeEach(() => { recordAuthSuccess(); });
+beforeEach(() => { resetAuthThrottle(null, db); });
 after(() => {
-  recordAuthSuccess();
   if (originalPassword === undefined) delete process.env.PI_WEB_PASSWORD;
   else process.env.PI_WEB_PASSWORD = originalPassword;
+  installDatabaseForTests(null);
 });
 
 function request(method, body, headers = {}) {
@@ -40,7 +45,7 @@ test("logs in with one password and reports the signed session", async () => {
   assert.equal(response.headers.has("set-cookie"), false);
   assert.equal(response.headers.get("retry-after"), "1");
 
-  recordAuthSuccess();
+  resetAuthThrottle(null, db);
   response = await POST(request("POST", { password: "correct horse battery staple" }));
   assert.equal(response.status, 200);
   const cookie = response.headers.get("set-cookie");
@@ -51,7 +56,24 @@ test("logs in with one password and reports the signed session", async () => {
 
   const cookiePair = cookie.split(";", 1)[0];
   response = await GET(request("GET", undefined, { Cookie: cookiePair }));
-  assert.deepEqual(await response.json(), { enabled: true, authenticated: true });
+  assert.deepEqual(await response.json(), {
+    enabled: true,
+    configured: true,
+    source: "environment",
+    authenticated: true,
+    username: "pi",
+  });
+});
+
+test("reports an unauthenticated status without a session", async () => {
+  const response = await GET(request("GET"));
+  assert.deepEqual(await response.json(), {
+    enabled: true,
+    configured: true,
+    source: "environment",
+    authenticated: false,
+    username: "pi",
+  });
 });
 
 test("blocks further attempts after a failure, even with the right password", async () => {
@@ -83,4 +105,13 @@ test("rejects cross-origin login attempts", async () => {
     { Origin: "https://attacker.example", "Sec-Fetch-Site": "cross-site" },
   ));
   assert.equal(response.status, 403);
+});
+
+test("rejects a non-JSON body", async () => {
+  const response = await POST(new NextRequest("http://localhost/api/web-auth", {
+    method: "POST",
+    headers: { Host: "localhost", "Content-Type": "text/plain" },
+    body: "password=x",
+  }));
+  assert.equal(response.status, 415);
 });

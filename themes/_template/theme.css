@@ -1,0 +1,36 @@
+/*
+ * Pi Web 主题样式表。
+ *
+ * 每个选择器都必须以 html[data-pi-theme="custom"] 开头，未加作用域的规则会被
+ * 校验器拒绝。只需覆盖你关心的变量，其余沿用 theme.json 中 `base` 指定的内置配色。
+ *
+ * 可用变量见 docs/theme-development.md
+ */
+
+html[data-pi-theme="custom"] {
+  --bg: #0f1115;
+  --bg-panel: #151a20;
+  --bg-hover: #1b222a;
+  --bg-selected: #222b34;
+  --border: #2b3540;
+  --text: #e6ecef;
+  --text-muted: #a7b3bd;
+  --text-dim: #7d8a95;
+  --accent: #7ee2b8;
+  --accent-hover: #a6f0d3;
+  --accent-contrast: #0b1a15;
+  --user-bg: #17202a;
+  --assistant-bg: #0f1115;
+  --tool-bg: #131920;
+  --bg-subtle: rgba(255, 255, 255, 0.04);
+}
+
+/*
+ * 可选：窄屏可以有不同的呈现。
+ * @media (max-width: 600px) {
+ *   html[data-pi-theme="custom"] { --bg-panel: #10141a; }
+ * }
+ *
+ * 可选：把图片或字体放在本文件旁边并用相对路径引用 —— 外链会被拒绝。
+ * html[data-pi-theme="custom"] { background-image: url(assets/pattern.svg); }
+ */

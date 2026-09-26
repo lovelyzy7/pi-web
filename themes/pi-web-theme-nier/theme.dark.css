@@ -1,0 +1,31 @@
+/* NieR:Automata — dark palette (the Bunker at night). */
+html[data-pi-theme="custom"] {
+  --bg: #0e0d0a;
+  --bg-panel: #16140f;
+  --bg-hover: #211e17;
+  --bg-selected: #2a261d;
+  --bg-subtle: rgba(230, 223, 201, 0.05);
+  --border: rgba(230, 223, 201, 0.35);
+
+  --text: #e6dfc9;
+  --text-muted: #b8b099;
+  --text-dim: #968e75;
+
+  --accent: #e6dfc9;
+  --accent-hover: #f2ecd9;
+  --accent-contrast: #141310;
+
+  --user-bg: #1d1a13;
+  --assistant-bg: #0e0d0a;
+  --tool-bg: #211e17;
+
+  --danger: #cf7160;
+  --success: #86a762;
+  --warning: #d2ab4e;
+  --info: #b8b099;
+
+  --terminal-bg: #0b0a08;
+  --terminal-fg: #e6dfc9;
+  --terminal-cursor: #86a762;
+  --qr-bg: #efe9d8;
+}

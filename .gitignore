@@ -44,3 +44,58 @@ yarn-error.log*
 next-env.d.ts
 .factory
 e2e_*.mjs
+
+# Windows 复制过来的文件会带这个备用数据流文件
+*:Zone.Identifier
+
+# --- 体积与派生产物的兜底规则 ---------------------------------------------
+# 目标：任何"本地生成/传输用/运行期"的大文件都不该进仓库。仓库只放源码与
+# 小体积资产（图标 SVG、必要的 PNG/JPG 截图），所以这里按**用途**排除，而不是
+# 按扩展名一刀切（docs 里的 PNG/JPG 截图是有意提交的）。
+
+# 打包与镜像传输产物：docker save / npm pack / 手工压缩都会在仓库根留下这些
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.iso
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.whl
+pi-web-releases/
+
+# 运行期数据：pi-web 的 SQLite 库与 pi 的会话文件正常情况下都在 ~/.pi/agent，
+# 但调试时很容易顺手拷进仓库 —— 它们又大又含隐私（会话、令牌摘要）。
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.jsonl
+
+# 测试与调试产物
+playwright-report/
+blob-report/
+.playwright/
+*.log
+*.mp4
+*.webm
+*.mov
+*.pid
+
+# 编辑器与系统文件
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# 本地缓存与临时构建
+.turbo/
+.cache/

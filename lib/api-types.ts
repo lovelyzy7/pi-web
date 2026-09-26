@@ -79,6 +79,15 @@ export interface AppUpdateResponse {
   latestVersion: string;
   updateAvailable: boolean;
   releaseUrl: string;
+  /** Epoch milliseconds of the check that produced this answer. */
+  checkedAt?: number;
+  fromCache?: boolean;
+  /** `PI_WEB_SKIP_VERSION_CHECK=1` turns the automatic check off. */
+  disabled?: boolean;
+  /** Whether automatic checks are off at all, cache or not. */
+  autoCheckDisabled?: boolean;
+  registry?: string;
+  error?: string;
 }
 
 export interface PushConfigResponse {

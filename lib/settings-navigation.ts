@@ -1,9 +1,13 @@
 export const SETTINGS_SECTION_VALUES = [
   "general",
+  "theme",
+  "account",
   "models",
+  "market",
   "skills",
   "agents",
   "plugins",
+  "updates",
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTION_VALUES)[number];

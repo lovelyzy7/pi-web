@@ -1,13 +1,16 @@
 /**
- * Global exponential backoff for password authentication failures.
+ * Backoff math for password authentication failures.
  *
- * Pi Web serves a single operator and binds to 127.0.0.1, so Next.js route
- * handlers have no reliable client address (`x-forwarded-for` is spoofable and
- * absent for direct connections). Rather than trusting a per-IP key, every
- * failure feeds one shared counter and briefly blocks all password attempts.
- * The only "other user" affected by the block is the operator, and a bounded
- * delay is acceptable for them while it caps brute force at roughly one guess
- * per minute.
+ * Pi Web serves a single operator behind a reverse proxy, so there is no client
+ * address to key on (`x-forwarded-for` is spoofable and absent for direct
+ * connections). Every failure feeds one shared counter per scope and briefly
+ * blocks further attempts there. The only "other user" affected by a block is
+ * the operator, and a bounded delay is acceptable for them while it caps brute
+ * force at roughly one guess per minute.
+ *
+ * The counters themselves live in the database (`lib/auth-throttle-store.ts`)
+ * so that restarting the server cannot hand a guesser a fresh burst. This module
+ * stays pure so the curve is testable on its own.
  */
 
 export const AUTH_THROTTLE_BASE_DELAY_MS = 1_000;
@@ -26,39 +29,8 @@ export interface AuthThrottleState {
   blockedUntil: number;
 }
 
-const STATE_KEY = "pi-web:auth-throttle";
-
-function freshState(): AuthThrottleState {
-  return { failures: 0, lastFailureAt: 0, blockedUntil: 0 };
-}
-
 export function createAuthThrottleState(): AuthThrottleState {
-  return freshState();
-}
-
-/** Stored on `globalThis` so the counter survives Next.js hot reloads. */
-function getGlobalState(): AuthThrottleState {
-  const store = globalThis as Record<PropertyKey, unknown>;
-  const key = Symbol.for(STATE_KEY);
-  const existing = store[key];
-  if (isState(existing)) return existing;
-  const created = freshState();
-  store[key] = created;
-  return created;
-}
-
-function isState(value: unknown): value is AuthThrottleState {
-  return typeof value === "object"
-    && value !== null
-    && typeof (value as AuthThrottleState).failures === "number"
-    && typeof (value as AuthThrottleState).lastFailureAt === "number"
-    && typeof (value as AuthThrottleState).blockedUntil === "number";
-}
-
-function expireIfStale(state: AuthThrottleState, now: number): void {
-  if (state.failures > 0 && now - state.lastFailureAt >= AUTH_THROTTLE_RESET_AFTER_MS) {
-    Object.assign(state, freshState());
-  }
+  return { failures: 0, lastFailureAt: 0, blockedUntil: 0 };
 }
 
 export function backoffDelayMs(failures: number): number {
@@ -67,33 +39,24 @@ export function backoffDelayMs(failures: number): number {
   return Math.min(AUTH_THROTTLE_BASE_DELAY_MS * 2 ** exponent, AUTH_THROTTLE_MAX_DELAY_MS);
 }
 
-/**
- * Milliseconds the caller must still wait before another attempt is accepted,
- * or 0 when attempts are allowed.
- */
-export function getAuthRetryAfterMs(
-  now = Date.now(),
-  state: AuthThrottleState = getGlobalState(),
-): number {
-  expireIfStale(state, now);
-  return Math.max(0, state.blockedUntil - now);
+/** A counter idle for longer than the reset window counts as cleared. */
+export function expireIfStale(state: AuthThrottleState, now: number): AuthThrottleState {
+  if (state.failures > 0 && now - state.lastFailureAt >= AUTH_THROTTLE_RESET_AFTER_MS) {
+    return createAuthThrottleState();
+  }
+  return state;
+}
+
+/** Milliseconds the caller must still wait before another attempt is accepted. */
+export function remainingBlockMs(state: AuthThrottleState, now: number): number {
+  return Math.max(0, expireIfStale(state, now).blockedUntil - now);
 }
 
 /** Records a failed attempt and returns the delay now imposed on the next one. */
-export function recordAuthFailure(
-  now = Date.now(),
-  state: AuthThrottleState = getGlobalState(),
-): number {
-  expireIfStale(state, now);
-  state.failures += 1;
-  state.lastFailureAt = now;
-  const delay = backoffDelayMs(state.failures);
-  state.blockedUntil = now + delay;
-  return delay;
-}
-
-export function recordAuthSuccess(state: AuthThrottleState = getGlobalState()): void {
-  Object.assign(state, freshState());
+export function nextFailureState(state: AuthThrottleState, now: number): AuthThrottleState {
+  const current = expireIfStale(state, now);
+  const failures = current.failures + 1;
+  return { failures, lastFailureAt: now, blockedUntil: now + backoffDelayMs(failures) };
 }
 
 /** Whole seconds for the `Retry-After` header; never less than 1 while blocked. */

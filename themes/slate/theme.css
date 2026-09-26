@@ -1,0 +1,25 @@
+/*
+ * Slate —— 仓库内的示例主题（深色基底）。
+ *
+ * 项目内主题放在 <项目>/themes/<名字>/ 或 <项目>/.pi/themes/<名字>/，
+ * 设置 → 主题 → 本地主题 会自动探测到它们，也可以一键导入到数据目录。
+ * 只有以 html[data-pi-theme="custom"] 开头的选择器会被接受。
+ */
+
+html[data-pi-theme="custom"] {
+  --bg: #1b1f24;
+  --bg-panel: #222831;
+  --bg-hover: #2a313b;
+  --bg-selected: #303a46;
+  --bg-subtle: rgba(255, 255, 255, 0.04);
+  --border: #333c47;
+  --text: #e2e8ef;
+  --text-muted: #a8b3c0;
+  --text-dim: #7d8896;
+  --accent: #7aa2f7;
+  --accent-hover: #9ab8ff;
+  --accent-contrast: #10141a;
+  --user-bg: #263041;
+  --assistant-bg: #1b1f24;
+  --tool-bg: #212832;
+}

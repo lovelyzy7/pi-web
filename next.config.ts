@@ -25,6 +25,9 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   serverExternalPackages: [
     "node-pty",
+    // Native module, and the proxy imports it: keep it out of the bundle so the
+    // N-API prebuild is loaded from node_modules at runtime.
+    "better-sqlite3",
     "undici",
     "web-push",
     "@earendil-works/pi-coding-agent",
@@ -59,6 +62,29 @@ const nextConfig: NextConfig = {
   ],
   async headers() {
     return [
+      {
+        // Every path: static assets and the API are not matched by the proxy, and
+        // these headers cost nothing on them.
+        //
+        // The list is inlined rather than imported from `lib/security-headers.ts`
+        // on purpose: Next transpiles this file to `next.config.compiled.js` and
+        // requires the result at startup, so anything it imports must exist in the
+        // runtime image — which ships build output, not sources. The dynamic
+        // headers (nonce CSP, HSTS) need the request, so they live in the proxy.
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "same-origin" },
+          { key: "X-Frame-Options", value: "DENY" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=()",
+          },
+          // Cross-Origin-Opener-Policy is applied by the proxy instead: browsers
+          // ignore it on plain-HTTP LAN origins and log a warning, so it is only
+          // meaningful where the origin is trustworthy.
+        ],
+      },
       {
         source: "/",
         headers: [

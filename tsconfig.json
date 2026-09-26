@@ -14,6 +14,10 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // lib/theme-manifest.ts spells its one relative import with a `.ts`
+    // extension so bin/pi-web-theme.js can load it through Node's type
+    // stripping and share the exact validator the server uses.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

@@ -1,30 +1,21 @@
-# Make Chat only a persisted resource policy
+# 0002 — 把 Chat only 当作一种持久化的资源策略
 
-Pi Web treats an explicitly empty tool selection as **Chat only**, not merely as
-an AgentSession whose active tool array happens to be empty.
+## 状态
 
-For a normal session, Chat only loads no extensions, skills, prompt templates,
-themes, or Pi base system prompt. Its exact system prompt is the ordered content
-of the context files discovered by Pi's default loader, including global and
-project `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md` files. Pi Web does not
-add its own prefix, suffix, or current-working-directory text.
+已接受。
 
-For a subagent whose resolved profile has no tools and has both resource-loading
-switches disabled, Chat only loads no extensions, skills, prompt templates,
-themes, context files, or Pi base system prompt. Its exact system prompt is the
-profile system prompt. If parent context inheritance is enabled, that context is
-included with the delegated user task instead of being appended to the system
-prompt. A profile may opt into skills or extensions independently. Extension
-tools are activated alongside the profile's built-in tools except for Pi Web's
-reserved subagent-control tools, which remain excluded to prevent nested Agent
-dispatch.
+## 背景
 
-The host may resolve `input_files` before dispatch and include their UTF-8 text
-in the delegated user task. This is input preparation, not a subagent tool: it
-does not change the active tool list or the exact Chat-only system prompt.
+Pi Web 允许在一个会话里选择启用哪些内置工具。工具全不选（空数组）在最初的实现里只是「一个活动工具数组为空的 AgentSession」——但扩展、技能、提示词模板、主题和 Pi 的基础系统提示词依然会被加载。用户要的其实是「只聊天」，而扩展在加载时就会执行代码。
 
-Pi's native session format does not persist the active tool selection. Normal
-sessions therefore append versioned `pi-web:tool-selection` custom entries:
+## 决策
+
+**Pi Web 把显式为空的选择视为「Chat only」，而不只是一个活动工具数组为空的会话。**
+
+- **普通会话的 Chat only**：不加载任何扩展、技能、提示词模板、主题，也不加载 Pi 的基础系统提示词。它的确切系统提示词就是 Pi 默认加载器发现的上下文文件内容，按顺序拼接，包括全局与项目里的 `AGENTS.md`、`AGENTS.override.md`、`CLAUDE.md`。Pi Web 不添加自己的前缀、后缀或当前工作目录文本。
+- **子代理的 Chat only**：当解析后的 profile 没有任何工具、且两个资源加载开关都关闭时，不加载扩展、技能、提示词模板、主题、上下文文件，也不加载 Pi 的基础系统提示词；其确切系统提示词就是 profile 自己的系统提示词。如果开启了父上下文继承，那份上下文会随委派任务一起传入，而不是追加到系统提示词里。profile 可以单独开启技能或扩展。扩展工具会与 profile 的内置工具一起启用，**但 Pi Web 保留的子代理控制工具除外**，以防嵌套的 Agent 派发。
+- 宿主可以在派发前解析 `input_files` 并把它们的 UTF-8 文本放进委派任务里。这属于输入准备，不是子代理工具：它不改变活动工具列表，也不改变 Chat only 的确切系统提示词。
+- Pi 原生会话格式不持久化活动工具选择，所以普通会话追加带版本号的自定义条目：
 
 ```json
 {
@@ -34,22 +25,11 @@ sessions therefore append versioned `pi-web:tool-selection` custom entries:
 }
 ```
 
-The latest valid entry is authoritative. No entry means a legacy session and
-retains Pi's default behavior; an empty `tools` array means Chat only; a nonempty
-array restores the selected built-in tools. The stored array is the user's
-selection before extension tools are added. Subagents keep using
-`resourceSnapshot` in their own metadata instead of duplicating this entry. The
-snapshot records their active tools and the profile's skill and extension
-loading switches so reopened sessions retain the same resource policy.
+- **最新一条有效条目为准。没有条目表示这是一次旧格式会话，保持 Pi 的默认行为；空数组表示 Chat only；非空数组恢复所选内置工具。**存的是「扩展工具加入之前」的用户选择。子代理仍使用自己元数据里的 `resourceSnapshot`，不重复写这个条目；快照记录它的活动工具以及 profile 的技能/扩展加载开关，使会话重新打开后仍保持同一套资源策略。
+- 持久化的选择必须在 `createAgentSessionServices()` **之前**解析出来，这样 Chat only 才不会导入或执行会话扩展。确切的系统提示词还必须在 Pi 的 `before_agent_start` 阶段之后重新应用，因为 SDK 会在调用模型前重建自己的基础提示词。
 
-The persisted selection must be resolved before `createAgentSessionServices()`
-so Chat only never imports or executes session extensions. The exact system
-prompt must also be reapplied after Pi's `before_agent_start` phase, because the
-SDK rebuilds its base prompt immediately before the model call.
+## 影响
 
-Changing among nonempty tool presets can update an existing wrapper. Crossing
-the Chat-only boundary must append the new selection and rebuild the wrapper:
-normal wrappers have already loaded extensions, while Chat-only wrappers do not
-have those resources available to enable in place. Persisted sessions retain
-their id and JSONL file. An unpersisted empty composer session may be discarded
-and recreated with a new internal id.
+- 空的编辑器会话可以丢弃并用新的内部 id 重建；已持久化的会话保留自己的 id 与 JSONL 文件。
+- 在**非空**工具预设之间切换可以就地更新已有 wrapper；跨越 Chat only 边界必须追加新选择并重建 wrapper —— 普通 wrapper 已经加载过扩展，而 Chat only 的 wrapper 手里没有这些资源可以就地启用。
+- 因为 Chat only 不导入扩展，它同时也是唯一「绝对不执行第三方代码」的会话模式。

@@ -1,64 +1,30 @@
-# Workspace Terminals
+# 工作区终端
 
-The Explorer terminal action opens or focuses a terminal for its selected cwd
-in the right panel's existing tab bar. Each terminal tab keeps the cwd it was
-created with. Files still mount only their active viewer; terminal panels stay
-mounted behind inactive tabs, hidden panels, and session or project switches.
+资源管理器里的终端按钮会在右侧面板现有的标签栏中，为选中的 cwd 打开或聚焦一个终端。每个终端标签都保留它创建时的 cwd。文件标签仍然只挂载当前激活的查看器；终端面板在非激活标签、隐藏面板以及会话/项目切换时都保持挂载。
 
-## Lifecycle
+## 生命周期
 
-- Each new tab generates a random terminal ID before creation. Creation with
-  the same ID and cwd is idempotent, including React Strict Mode's repeated
-  effects. An existing ID cannot be reused for another cwd.
-- `sessionStorage` retains terminal IDs, cwds, and the active terminal layout
-  across refresh. Restored tabs first check the existing server instance and
-  never silently start replacement processes after expiry or server restart.
-- A new PTY gets a 120-second connection lease. Subscribing cancels expiry;
-  the last subscriber leaving starts a new 120-second grace period. This also
-  collects creations that never establish their initial connection.
-- Hiding a panel, switching tabs, and unmounting a component only disconnect
-  clients. Explicitly terminating a tab waits for creation and in-flight input
-  before deleting the PTY. Restart waits for termination before creating a new
-  ID. Failed termination leaves the tab available to retry.
-- A shell exit closes the SSE stream and retains its output and exit code in
-  the browser. Unobserved server records expire after the same grace period.
-- Explicit termination and expiry signal the shell, escalating to SIGKILL after
-  two seconds if it ignores SIGHUP. Server shutdown force-kills shells immediately.
+- 每个新标签在创建前生成随机终端 ID。相同 ID 与 cwd 的创建是幂等的，包括 React Strict Mode 重复执行 effect 的情况；已存在的 ID 不能用于另一个 cwd。
+- `sessionStorage` 会在刷新后保留终端 ID、cwd 与激活的终端布局。恢复的标签会先检查服务端是否已有该实例，绝不在过期或服务端重启后悄悄启动替代进程。
+- 新 PTY 会获得 120 秒的连接租约。订阅会取消过期；最后一个订阅者离开则重新开始 120 秒宽限期。这同时会回收那些从未建立首次连接的创建。
+- 隐藏面板、切换标签、组件卸载都只会断开客户端。显式终止一个标签会等待创建与在途输入完成后再删除 PTY；重启会等待终止完成后再创建新 ID；终止失败时标签仍保留以便重试。
+- Shell 退出会关闭 SSE 流，并把输出与退出码留在浏览器里。服务端无人观察的记录会在同样的宽限期后过期。
+- 显式终止与过期都会向 shell 发信号，若它忽略 SIGHUP，两秒后升级为 SIGKILL。服务端关闭时立即强制杀死所有 shell。
 
-## Transport
+## 传输
 
-Output events carry a monotonically increasing UTF-16 offset in SSE `id`.
-Reconnections use `Last-Event-ID` (or `after` on an explicit reconnect) and send
-only the missing suffix. The server keeps at most 128 KiB of UTF-16 code units;
-an older cursor triggers a terminal reset and bounded history replay. This is
-bounded output history, not a serialized full-screen terminal snapshot. Slow
-SSE consumers are disconnected once their response queue fills.
+输出事件在 SSE `id` 中携带单调递增的 UTF-16 偏移量。重连使用 `Last-Event-ID`（显式重连时为 `after`），只发送缺失的后缀。服务端最多保留 128 KiB 的 UTF-16 码元；游标更旧时会触发终端重置并重放有界历史。这是**有界的输出历史**，不是序列化的全屏终端快照。较慢的 SSE 消费者在响应队列填满后会被断开。
 
-Input and resizes are serialized. Pending adjacent input is batched so remote
-connections do not require one round trip per keystroke; large pastes are split
-without splitting Unicode characters. Failed input is not retried because its
-delivery may be ambiguous. Reconnect attaches to the same process with a fresh
-writer; restart explicitly replaces the process.
+输入与窗口尺寸变化是串行处理的。相邻的待发输入会批量合并，使远程连接不必每个按键一次往返；大段粘贴会被拆分，但不会切开 Unicode 字符。失败的输入不会重试，因为其是否送达本身是模糊的。重连会以新的写入者接入同一个进程；重启则显式替换进程。
 
-`bin/prepare-terminal.js` repairs node-pty 1.1.0's macOS spawn-helper executable
-bits during installation, including published/npm-installed Pi Web packages.
+`bin/prepare-terminal.js` 在安装期间修复 node-pty 1.1.0 的 macOS spawn-helper 可执行位，对已发布的 / npm 安装的 Pi Web 包同样生效。
 
-Pi Web pins node-pty to `1.2.0-beta.15`, which includes Linux x64 and ARM64
-prebuilt binaries. Native module loading is deferred until terminal creation,
-so missing or incompatible binaries produce a JSON error with repair instructions.
-Empty or non-JSON API errors show the HTTP status and direct users to the server log.
+Pi Web 把 node-pty 固定在 `1.2.0-beta.15`，该版本包含 Linux x64 与 ARM64 预编译二进制。原生模块的加载会推迟到创建终端时，因此缺失或不兼容的二进制会产生带修复说明的 JSON 错误。空的或非 JSON 的 API 错误会显示 HTTP 状态，并引导用户查看服务端日志。
 
-If a native binary cannot load, run
-`npm rebuild node-pty --build-from-source --ignore-scripts=false --foreground-scripts` from the
-installation directory (for npx, the cache directory containing `node_modules`).
-On Debian/Ubuntu, install `python3` and `build-essential` first. This forces a
-source build instead of reusing a missing or incompatible prebuilt binary.
-Restart Pi Web after repair.
+如果原生二进制无法加载，请在安装目录（使用 npx 时是包含 `node_modules` 的缓存目录）执行
+`npm rebuild node-pty --build-from-source --ignore-scripts=false --foreground-scripts`。
+在 Debian/Ubuntu 上先安装 `python3` 与 `build-essential`。这会强制从源码构建，而不是复用缺失或不兼容的预编译二进制。修复后重启 Pi Web。
 
-## Verification
+## 验证
 
-Run `npm test` for native PTY, lease, output cursor, input queue, and storage
-checks. `npm run test:terminal` starts an isolated development server and runs
-desktop/mobile browser checks using generated session fixtures. Install the
-Playwright Chromium browser first with `npx playwright install chromium`.
-The browser check prints the temporary location of its screenshots and log.
+运行 `npm test` 覆盖原生 PTY、租约、输出游标、输入队列与存储相关的检查。`npm run test:terminal` 会启动一个独立的开发服务器，并用生成的会话夹具执行桌面/移动端浏览器检查；请先用 `npx playwright install chromium` 安装 Playwright 的 Chromium。该浏览器检查会打印截图与日志的临时位置。

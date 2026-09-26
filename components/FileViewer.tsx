@@ -8,6 +8,7 @@ import {
 } from "react-syntax-highlighter";
 import { vs } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { prepareHighlightTheme, splitConflictingShorthands } from "@/lib/highlight-style";
 import ReactMarkdown from "react-markdown";
 import { useTheme } from "@/hooks/useTheme";
 import {
@@ -73,7 +74,15 @@ const FILE_CODE_STYLE: CSSProperties = {
   lineHeight: 1.6,
 };
 
-const FILE_LINE_NUMBER_STYLE: CSSProperties = {
+/**
+ * Prepared once: react-syntax-highlighter's Prism themes mix `background` with
+ * `backgroundColor` between palettes, and one `<pre>` may not carry both forms
+ * (React warns and the styling can end up wrong). See `lib/highlight-style.ts`.
+ */
+const HIGHLIGHT_THEME_LIGHT = prepareHighlightTheme(vs);
+const HIGHLIGHT_THEME_DARK = prepareHighlightTheme(vscDarkPlus);
+
+const FILE_LINE_NUMBER_STYLE: CSSProperties = splitConflictingShorthands({
   width: 48,
   minWidth: 48,
   padding: "0 10px",
@@ -89,7 +98,7 @@ const FILE_LINE_NUMBER_STYLE: CSSProperties = {
   userSelect: "none",
   flexShrink: 0,
   verticalAlign: "top",
-};
+});
 
 type SourceCodeRendererProps = Parameters<NonNullable<SyntaxHighlighterProps["renderer"]>>[0] & {
   wrapLines: boolean;
@@ -374,7 +383,7 @@ function DiffView({ patch }: { patch: string }) {
           const prefix =
             line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
           const prefixColor =
-            line.type === "added" ? "#4ade80" : line.type === "removed" ? "#f87171" : "var(--text-dim)";
+            line.type === "added" ? "var(--success)" : line.type === "removed" ? "var(--danger)" : "var(--text-dim)";
 
           return (
             <div
@@ -385,9 +394,9 @@ function DiffView({ patch }: { patch: string }) {
                 minWidth: "100%",
                 background: bg,
                 borderLeft: line.type === "added"
-                  ? "3px solid #4ade80"
+                  ? "3px solid var(--success)"
                   : line.type === "removed"
-                  ? "3px solid #f87171"
+                  ? "3px solid var(--danger)"
                   : "3px solid transparent",
               }}
             >
@@ -536,16 +545,16 @@ function ImageViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         {formatSizeStr && <span>{formatSizeStr}</span>}
         <span
           title={watching ? t("i18n.liveSync") : t("i18n.notWatching")}
-          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--text-dim)" }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "var(--success)" : "var(--text-dim)" }}
         >
           <span
             style={{
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: watching ? "#4ade80" : "var(--border)",
+              background: watching ? "var(--success)" : "var(--border)",
               display: "inline-block",
-              boxShadow: watching ? "0 0 4px #4ade80" : "none",
+              boxShadow: watching ? "0 0 4px var(--success)" : "none",
             }}
           />
           {watching ? "live" : "static"}
@@ -568,7 +577,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         }}
       >
         {error ? (
-          <div style={{ color: "#f87171", fontSize: 13 }}>{error}</div>
+          <div style={{ color: "var(--danger)", fontSize: 13 }}>{error}</div>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -706,16 +715,16 @@ function AudioViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         {size != null && <span>{formatSize(size)}</span>}
         <span
           title={watching ? t("i18n.liveSync") : t("i18n.notWatching")}
-          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--text-dim)" }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "var(--success)" : "var(--text-dim)" }}
         >
           <span
             style={{
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: watching ? "#4ade80" : "var(--border)",
+              background: watching ? "var(--success)" : "var(--border)",
               display: "inline-block",
-              boxShadow: watching ? "0 0 4px #4ade80" : "none",
+              boxShadow: watching ? "0 0 4px var(--success)" : "none",
             }}
           />
           {watching ? "live" : "static"}
@@ -734,7 +743,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
       >
         <div style={{ width: "min(680px, 100%)" }}>
           {error && (
-            <div style={{ color: "#f87171", fontSize: 13, marginBottom: 12, textAlign: "center" }}>
+            <div style={{ color: "var(--danger)", fontSize: 13, marginBottom: 12, textAlign: "center" }}>
               {error}
             </div>
           )}
@@ -859,16 +868,16 @@ function VideoViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         {size != null && <span>{formatSize(size)}</span>}
         <span
           title={watching ? t("i18n.liveSync") : t("i18n.notWatching")}
-          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--text-dim)" }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "var(--success)" : "var(--text-dim)" }}
         >
           <span
             style={{
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: watching ? "#4ade80" : "var(--border)",
+              background: watching ? "var(--success)" : "var(--border)",
               display: "inline-block",
-              boxShadow: watching ? "0 0 4px #4ade80" : "none",
+              boxShadow: watching ? "0 0 4px var(--success)" : "none",
             }}
           />
           {watching ? "live" : "static"}
@@ -888,7 +897,7 @@ function VideoViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
       >
         <div style={{ width: "min(960px, 100%)", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
           {error && (
-            <div style={{ color: "#f87171", fontSize: 13, marginBottom: 12, textAlign: "center" }}>
+            <div style={{ color: "var(--danger)", fontSize: 13, marginBottom: 12, textAlign: "center" }}>
               {error}
             </div>
           )}
@@ -1047,16 +1056,16 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, initialPage, watchEnab
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
         <span
           title={watching ? t("i18n.liveSync") : t("i18n.notWatching")}
-          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--text-dim)", flexShrink: 0 }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "var(--success)" : "var(--text-dim)", flexShrink: 0 }}
         >
           <span
             style={{
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: watching ? "#4ade80" : "var(--border)",
+              background: watching ? "var(--success)" : "var(--border)",
               display: "inline-block",
-              boxShadow: watching ? "0 0 4px #4ade80" : "none",
+              boxShadow: watching ? "0 0 4px var(--success)" : "none",
             }}
           />
           {watching ? "live" : "static"}
@@ -1064,7 +1073,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, initialPage, watchEnab
       </div>
       <div style={{ flex: 1, minHeight: 0, background: "var(--bg-panel)" }}>
         {error ? (
-          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "#f87171", fontSize: 13, textAlign: "center" }}>
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "var(--danger)", fontSize: 13, textAlign: "center" }}>
             {error}
           </div>
         ) : (
@@ -1378,27 +1387,30 @@ function TextFileViewer({
   // react-syntax-highlighter rebuilds every token element on each render, which
   // costs hundreds of milliseconds on large files. Cache the rendered trees so
   // unrelated re-renders (panel open/close, selection changes) reuse them as-is.
+  // The custom style wins over the theme's `pre` rules, so it must speak the
+  // same property forms (longhands only) to avoid the rerender warning.
+  const preparedCustomStyle = useMemo(() => splitConflictingShorthands({
+    margin: 0,
+    padding: 0,
+    border: 0,
+    backgroundColor: "var(--bg)",
+    ...FILE_CODE_STYLE,
+    width: wrapLines ? "100%" : "max-content",
+    minWidth: "100%",
+    minHeight: "100%",
+    overflow: "visible",
+  }), [wrapLines]);
   const highlightedSource = useMemo(
     () => (
       <SyntaxHighlighter
         className={wrapLines ? "file-source-view is-wrapped" : "file-source-view"}
         language={language === "text" ? "plaintext" : language}
-        style={isDark ? vscDarkPlus : vs}
+        style={isDark ? HIGHLIGHT_THEME_DARK : HIGHLIGHT_THEME_LIGHT}
         showLineNumbers
         lineNumberStyle={{
           ...FILE_LINE_NUMBER_STYLE,
         }}
-        customStyle={{
-          margin: 0,
-          padding: 0,
-          border: 0,
-          background: "var(--bg)",
-          ...FILE_CODE_STYLE,
-          width: wrapLines ? "100%" : "max-content",
-          minWidth: "100%",
-          minHeight: "100%",
-          overflow: "visible",
-        }}
+        customStyle={preparedCustomStyle}
         codeTagProps={{
           style: {
             fontFamily: "var(--font-mono)",
@@ -1413,7 +1425,7 @@ function TextFileViewer({
         {viewerContent}
       </SyntaxHighlighter>
     ),
-    [isDark, language, viewerContent, wrapLines],
+    [isDark, language, viewerContent, wrapLines, preparedCustomStyle],
   );
   const lightweightSourceLines = useMemo(
     () => useLightweightSource ? sourceLines.map((line, lineIndex) => (
@@ -1527,7 +1539,7 @@ function TextFileViewer({
 
   if (error && !isDeletedDiff) {
     return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#f87171", fontSize: 13 }}>
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--danger)", fontSize: 13 }}>
         {error}
       </div>
     );
@@ -1576,8 +1588,8 @@ function TextFileViewer({
             aria-label={watching ? t("i18n.liveSync") : t("i18n.notWatching")}
             className="file-viewer-live-indicator"
             style={{
-              background: watching ? "#4ade80" : "var(--border)",
-              boxShadow: watching ? "0 0 4px #4ade80" : "none",
+              background: watching ? "var(--success)" : "var(--border)",
+              boxShadow: watching ? "0 0 4px var(--success)" : "none",
             }}
           />
         )}

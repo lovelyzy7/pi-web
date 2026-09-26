@@ -1124,7 +1124,13 @@ export function AppShell() {
       signal: controller.signal,
     })
       .then(async (response) => {
-        const data = await response.json() as ProjectTrustStatus & { error?: string };
+        const data = await response.json() as ProjectTrustStatus & { error?: string; code?: string };
+        // A project that is not on this machine has no trust to report; that is
+        // an expected state in a container, not a failure worth logging.
+        if (data.code === "cwd_missing") {
+          setProjectTrust(null);
+          return;
+        }
         if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
         setProjectTrust(data);
       })
@@ -1242,6 +1248,23 @@ export function AppShell() {
           <SettingsSectionIcon section="general" size={14} strokeWidth={2} />
           <span>{translate("common.settings")}</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setSettingsSection("account")}
+          title={translate("user.open")}
+          aria-label={translate("user.open")}
+          style={{
+            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            height: 32, padding: 0, background: "none", border: "none",
+            borderRadius: 9, color: "var(--text-muted)", cursor: "pointer",
+            fontSize: 12, transition: "background 0.12s, color 0.12s",
+          }}
+          onMouseEnter={(event) => { event.currentTarget.style.background = "var(--bg-hover)"; event.currentTarget.style.color = "var(--text)"; }}
+          onMouseLeave={(event) => { event.currentTarget.style.background = "none"; event.currentTarget.style.color = "var(--text-muted)"; }}
+        >
+          <SettingsSectionIcon section="account" size={14} strokeWidth={2} />
+          <span>{translate("user.title")}</span>
+        </button>
       </div>
     </>
   );
@@ -1266,11 +1289,11 @@ export function AppShell() {
           minHeight: mobileBanner ? 32 : undefined,
           height: mobileBanner ? undefined : "100%",
           padding: mobileBanner ? "6px 12px" : "0 12px",
-          background: mobileBanner ? "color-mix(in srgb, #d97706 8%, var(--bg-panel))" : "none",
+          background: mobileBanner ? "color-mix(in srgb, var(--warning) 8%, var(--bg-panel))" : "none",
           border: "none",
           borderRight: mobileBanner ? "none" : "1px solid var(--border)",
           borderBottom: mobileBanner ? "1px solid var(--border)" : "none",
-          color: "#d97706",
+          color: "var(--warning)",
           cursor: "pointer",
           flexShrink: 0,
           fontSize: 11,
@@ -1406,7 +1429,7 @@ export function AppShell() {
                 background: "none", border: "none",
                 borderTop: "2px solid transparent",
                 borderRight: "1px solid var(--border)",
-                color: isError ? "#dc2626" : isSuccess ? "var(--accent)" : disabled ? "var(--text-dim)" : "var(--text-muted)",
+                color: isError ? "var(--danger)" : isSuccess ? "var(--accent)" : disabled ? "var(--text-dim)" : "var(--text-muted)",
                 cursor: disabled ? "not-allowed" : "pointer",
                 opacity: disabled && autoNameStatus.kind !== "naming" ? 0.45 : 1,
                 flexShrink: 0, fontSize: 11, whiteSpace: "nowrap",
@@ -1414,11 +1437,11 @@ export function AppShell() {
               }}
               onMouseEnter={(event) => {
                 if (disabled) return;
-                event.currentTarget.style.color = isError ? "#dc2626" : "var(--text)";
+                event.currentTarget.style.color = isError ? "var(--danger)" : "var(--text)";
                 event.currentTarget.style.background = "var(--bg-hover)";
               }}
               onMouseLeave={(event) => {
-                event.currentTarget.style.color = isError ? "#dc2626" : isSuccess ? "var(--accent)" : disabled ? "var(--text-dim)" : "var(--text-muted)";
+                event.currentTarget.style.color = isError ? "var(--danger)" : isSuccess ? "var(--accent)" : disabled ? "var(--text-dim)" : "var(--text-muted)";
                 event.currentTarget.style.background = "none";
               }}
               data-mobile-toolbar-action={mobile ? "name" : undefined}
@@ -1613,7 +1636,7 @@ export function AppShell() {
     let mobileContextText: string | null = null;
     if (contextUsage?.contextWindow) {
       const percent = contextUsage.percent;
-      if (percent !== null && percent > 90) contextColor = "#ef4444";
+      if (percent !== null && percent > 90) contextColor = "var(--danger)";
       else if (percent !== null && percent > 70) contextColor = "rgba(234,179,8,0.95)";
       desktopContextText = percent !== null
         ? `${percent.toFixed(0)}% / ${formatCompact(contextUsage.contextWindow)}`
@@ -2308,6 +2331,7 @@ export function AppShell() {
         <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
           {showChat ? (
             <ChatWindow
+        onOpenSettings={setSettingsSection}
               key={sessionKey}
               session={selectedSession}
               searchTarget={searchTarget?.sessionId === selectedSession?.id ? searchTarget : null}
@@ -2356,7 +2380,7 @@ export function AppShell() {
               role="alert"
               style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, color: "var(--text-muted)", textAlign: "center" }}
             >
-               <div style={{ fontSize: 14, color: "#dc2626" }}>{translate("workspace.unable")}</div>
+               <div style={{ fontSize: 14, color: "var(--danger)" }}>{translate("workspace.unable")}</div>
               <div style={{ maxWidth: "min(720px, 100%)", overflowWrap: "anywhere", fontFamily: "var(--font-mono)", fontSize: 12 }}>
                 {initialNavigation.requestedCwd}
               </div>

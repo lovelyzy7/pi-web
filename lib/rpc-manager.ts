@@ -1947,6 +1947,29 @@ export function getCompletionNotificationSuppressedRpcSessionIds(): string[] {
  * thinking pin, and SDK scopedModels share one settings snapshot.
  * Pass options.toolNames to pre-configure active tools (empty = all disabled).
  */
+/**
+ * Raised when a session's working directory does not exist on this server.
+ *
+ * Browsing a session never needs the directory, so it stays readable; running
+ * the agent does, and pi's own failure for that is a bare path message. This
+ * type lets the routes report `cwd_missing` — the UI can then say what is wrong
+ * (usually the project was never mounted into the container) instead of showing
+ * a model or agent fault.
+ */
+export class CwdMissingError extends Error {
+  readonly code = "cwd_missing";
+
+  constructor(readonly cwd: string) {
+    super(`Directory does not exist: ${cwd}`);
+    this.name = "CwdMissingError";
+  }
+}
+
+export function isCwdMissingError(error: unknown): error is CwdMissingError {
+  return error instanceof CwdMissingError
+    || (typeof error === "object" && error !== null && (error as { code?: unknown }).code === "cwd_missing");
+}
+
 export async function startRpcSession(
   sessionId: string,
   sessionFile: string,
@@ -1974,6 +1997,9 @@ export async function startRpcSession(
     sessionManager = SessionManager.create(cwd, undefined);
   }
   const sessionCwd = sessionManager.getCwd();
+  // A session file can be opened for reading anywhere; starting an agent needs a
+  // real working directory.
+  if (!existsSync(sessionCwd)) throw new CwdMissingError(sessionCwd);
   const subagentResources = sessionFile
     ? readSubagentSessionResources(
         sessionManager.getEntries() as unknown as SessionEntry[],

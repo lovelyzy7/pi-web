@@ -131,7 +131,13 @@ export async function GET(req: NextRequest) {
     try {
       stat = fs.statSync(cwd);
     } catch {
-      return NextResponse.json({ error: "Directory not found" }, { status: 404 });
+      // Same answer as /api/files: the sidebar can say "directory does not
+      // exist" (a container without the project mounted) instead of surfacing a
+      // bare 404 for a path the operator recognises.
+      return NextResponse.json(
+        { error: `Directory does not exist: ${cwd}`, code: "cwd_missing", path: cwd },
+        { status: 404 },
+      );
     }
     if (!stat.isDirectory()) {
       return NextResponse.json({ error: "Not a directory" }, { status: 400 });

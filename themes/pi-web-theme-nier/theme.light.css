@@ -1,0 +1,31 @@
+/* NieR:Automata — light (cream) palette. */
+html[data-pi-theme="custom"] {
+  --bg: #cfc7b0;
+  --bg-panel: #d8d1bb;
+  --bg-hover: #c6bda4;
+  --bg-selected: #b8b099;
+  --bg-subtle: rgba(26, 24, 20, 0.05);
+  --border: rgba(26, 24, 20, 0.55);
+
+  --text: #2c2922;
+  --text-muted: #57523f;
+  --text-dim: #6b6650;
+
+  --accent: #1a1814;
+  --accent-hover: #2c2922;
+  --accent-contrast: #d8d1bb;
+
+  --user-bg: #d8d1bb;
+  --assistant-bg: #cfc7b0;
+  --tool-bg: #b8b099;
+
+  --danger: #6b0a0a;
+  --success: #3a4d24;
+  --warning: #a1762b;
+  --info: #57523f;
+
+  --terminal-bg: #1a1814;
+  --terminal-fg: #d8d1bb;
+  --terminal-cursor: #cfc7b0;
+  --qr-bg: #efe9d8;
+}

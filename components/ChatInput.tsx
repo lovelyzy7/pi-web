@@ -52,6 +52,7 @@ interface Props {
   modelNames?: Record<string, string>;
   modelList?: { id: string; name: string; provider: string; input?: string[] }[];
   modelError?: string | null;
+  modelCwdNotice?: ModelCwdNotice | null;
   /** Diagnostics from resolving `enabledModels`, e.g. a pattern that matched nothing. */
   modelScopeWarnings?: string[];
   onModelChange?: (provider: string, modelId: string) => void;
@@ -524,6 +525,38 @@ export function ModelErrorBanner({ error }: { error?: string | null }) {
   return <ModelNoticeBanner tone="error" title={t("chat.modelError")} body={error} />;
 }
 
+export interface ModelCwdNotice {
+  requested: string;
+  used: string;
+  reason: "missing" | "not_a_directory" | "not_allowed";
+}
+
+/**
+ * The selected project directory is not on this machine.
+ *
+ * It is not an error in the model: the listing simply came from another
+ * directory (usually because a container was started without that project
+ * mounted). Saying so — with both paths — is what turns a confusing red "Model
+ * error" into an actionable message.
+ */
+export function ModelCwdNoticeBanner({ notice }: { notice?: ModelCwdNotice | null }) {
+  const { t } = useI18n();
+  if (!notice) return null;
+  const params = { path: notice.requested };
+  const reason = notice.reason === "not_allowed"
+    ? t("chat.cwdNoticeNotAllowed", params)
+    : notice.reason === "not_a_directory"
+      ? t("chat.cwdNoticeNotADirectory", params)
+      : t("chat.cwdNoticeMissing", params);
+  return (
+    <ModelNoticeBanner
+      tone="warning"
+      title={t("chat.cwdNoticeTitle")}
+      body={`${reason} ${t("chat.cwdNoticeFallback", { used: notice.used })}`}
+    />
+  );
+}
+
 /** True when the selected model is known to accept image input (#584). Unknown modality info never blocks the user. */
 export function modelSupportsImageInput(
   model: { provider: string; modelId: string } | null | undefined,
@@ -549,7 +582,7 @@ export function ModelScopeWarningBanner({ warnings }: { warnings?: string[] }) {
 }
 
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
-  onSend, onAbort, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelScopeWarnings, onModelChange, modelSwitching,
+  onSend, onAbort, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelCwdNotice, modelScopeWarnings, onModelChange, modelSwitching,
   onCompact, onAbortCompaction, isCompacting, compactError, compactResult, toolPreset, onToolPresetChange,
   thinkingLevel, isAutoThinkingSelection = false, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
   retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
@@ -1603,6 +1636,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       />}
       <div style={{ maxWidth: "var(--chat-content-max-width, 820px)", margin: "0 auto" }}>
         <ModelErrorBanner error={modelError} />
+        <ModelCwdNoticeBanner notice={modelCwdNotice} />
         <ModelScopeWarningBanner warnings={modelScopeWarnings} />
         {showImageUnsupportedWarning && (() => {
           const entry = modelList?.find((m) => m.provider === model?.provider && m.id === model?.modelId);
@@ -1718,9 +1752,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               marginBottom: 8,
               padding: "7px 10px",
               background: "rgba(239,68,68,0.07)",
-              border: "1px solid rgba(239,68,68,0.3)",
+              border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
               borderRadius: 6,
-              color: "#ef4444",
+              color: "var(--danger)",
               fontFamily: "var(--font-mono)",
               fontSize: 12,
               lineHeight: 1.5,
@@ -2591,7 +2625,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                     background: isCompacting ? "rgba(239,68,68,0.08)" : "none",
                     border: "none",
                     borderRadius: 9,
-                    color: isCompacting ? "#ef4444" : "var(--text-muted)",
+                    color: isCompacting ? "var(--danger)" : "var(--text-muted)",
                     cursor: (isStreaming && !isCompacting) ? "not-allowed" : "pointer",
                     fontSize: 12, opacity: (isStreaming && !isCompacting) ? 0.5 : 1,
                     transition: "background 0.12s, color 0.12s",
@@ -2599,11 +2633,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   onMouseEnter={(e) => {
                     if (isStreaming && !isCompacting) return;
                     e.currentTarget.style.background = isCompacting ? "rgba(239,68,68,0.16)" : "var(--bg-hover)";
-                    e.currentTarget.style.color = isCompacting ? "#ef4444" : "var(--text)";
+                    e.currentTarget.style.color = isCompacting ? "var(--danger)" : "var(--text)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = isCompacting ? "rgba(239,68,68,0.08)" : "none";
-                    e.currentTarget.style.color = isCompacting ? "#ef4444" : "var(--text-muted)";
+                    e.currentTarget.style.color = isCompacting ? "var(--danger)" : "var(--text-muted)";
                   }}
                    title={isCompacting ? t("chat.stopCompaction") : t("chat.compactContext")}
                    aria-label={isCompacting ? t("chat.stopCompaction") : t("chat.compactContext")}
@@ -2629,9 +2663,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   padding: "8px 14px",
                   height: 32,
                   background: "rgba(239,68,68,0.08)",
-                  border: "1px solid rgba(239,68,68,0.3)",
+                  border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
                   borderRadius: 9,
-                  color: "#ef4444",
+                  color: "var(--danger)",
                   cursor: "pointer",
                   fontSize: 12, fontWeight: 600,
                   whiteSpace: "nowrap", letterSpacing: "-0.01em",

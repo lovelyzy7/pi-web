@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useI18n } from "@/hooks/useI18n";
+import type { CwdNotice } from "@/lib/cwd-notice";
 import type {
   SkillInfo as Skill,
   SkillInstallScope,
@@ -134,7 +135,7 @@ function SkillDetail({
             </span>
           )}
           {saveError && (
-            <span style={{ fontSize: 12, color: "#f87171", overflowWrap: "anywhere" }}>
+            <span style={{ fontSize: 12, color: "var(--danger)", overflowWrap: "anywhere" }}>
               {saveError}
             </span>
           )}
@@ -209,7 +210,7 @@ function SkillDetail({
             )}
           </div>
           {updateError && (
-            <span style={{ fontSize: 12, color: "#ef4444" }}>{updateError}</span>
+            <span style={{ fontSize: 12, color: "var(--danger)" }}>{updateError}</span>
           )}
         </ConfigField>
       )}
@@ -413,11 +414,11 @@ function AddSkillPanel({
 
         {/* Errors */}
         {searchError && (
-          <div style={{ fontSize: 12, color: "#f87171" }}>{searchError}</div>
+          <div style={{ fontSize: 12, color: "var(--danger)" }}>{searchError}</div>
         )}
         {installError && (
           <div
-            style={{ fontSize: 12, color: "#f87171", wordBreak: "break-word" }}
+            style={{ fontSize: 12, color: "var(--danger)", wordBreak: "break-word" }}
           >
             {installError}
           </div>
@@ -512,7 +513,7 @@ function AddSkillPanel({
                     flexShrink: 0,
                     background: isInstalled ? "rgba(34,197,94,0.1)" : "none",
                     color: isInstalled
-                      ? "#16a34a"
+                      ? "var(--success)"
                       : isInstalling
                         ? "var(--accent)"
                         : "var(--text-muted)",
@@ -574,14 +575,17 @@ export function SkillsConfig({
   const [updatingSkill, setUpdatingSkill] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [projectResourcesLoaded, setProjectResourcesLoaded] = useState(true);
+  /** Set when the server listed the global scope only (project not on this host). */
+  const [cwdNotice, setCwdNotice] = useState<CwdNotice | null>(null);
 
   const loadSkills = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/skills?cwd=${encodeURIComponent(cwd)}`);
-      const d = (await res.json()) as Partial<SkillsResponse> & { error?: string };
+      const d = (await res.json()) as Partial<SkillsResponse> & { error?: string; cwdNotice?: CwdNotice };
       if (!res.ok || d.error) throw new Error(d.error ?? `HTTP ${res.status}`);
+      setCwdNotice(d.cwdNotice ?? null);
       const list = d.skills ?? [];
       setSkills(list);
       setProjectResourcesLoaded(d.projectResourcesLoaded ?? true);
@@ -743,6 +747,8 @@ export function SkillsConfig({
             {t("trust.skillsNotLoaded")}
           </div>
         )}
+
+        <ProjectCwdNoticeLine notice={cwdNotice} />
 
         {/* Body */}
         <ConfigSplitView>
@@ -916,7 +922,7 @@ export function SkillsConfig({
             Object.values(updateStatuses).filter(
               (status) => status.state === "update-available",
             ).length > 0 && (
-              <span style={{ fontSize: 12, color: "#d97706" }}>
+              <span style={{ fontSize: 12, color: "var(--warning)" }}>
                 {
                   Object.values(updateStatuses).filter(
                     (status) => status.state === "update-available",
@@ -938,5 +944,20 @@ export function SkillsConfig({
           )}
         </ConfigFooter>
     </ConfigPanelShell>
+  );
+}
+
+/**
+ * The selected project is not on this machine (usually a container without that
+ * project mounted). The global skills and packages are still listed, so this is
+ * a notice next to them, not an error that replaces them.
+ */
+function ProjectCwdNoticeLine({ notice }: { notice: CwdNotice | null }) {
+  const { t } = useI18n();
+  if (!notice) return null;
+  return (
+    <div role="status" className="config-trust-notice">
+      {t("settings.cwdNotice", { path: notice.requested })}
+    </div>
   );
 }

@@ -1,0 +1,57 @@
+/*
+ * NieR:Automata — YoRHa Bunker Terminal.
+ *
+ * Palette and geometry taken from the CF-Server-Monitor NieR theme
+ * (lunar-base `automata.css`): cream canvas #cfc7b0, panel #d8d1bb, charcoal
+ * #1a1814 as the only "brand" colour, sage green for healthy, dried blood for
+ * failures, and the NieR cursor set.
+ *
+ * This file holds the shared layer (cursors, hairline treatment) and the light
+ * mode; `theme.light.css` / `theme.dark.css` carry the two palettes.
+ */
+
+html[data-pi-theme="custom"] {
+  /* The cursors are half of the look. 6 16 / 0 0 are the hotspots the original
+     uses; `auto` keeps a sane fallback when an image cannot load. */
+  cursor: url(assets/cursor-default.png) 6 16, auto;
+}
+
+html[data-pi-theme="custom"] button,
+html[data-pi-theme="custom"] a,
+html[data-pi-theme="custom"] label,
+html[data-pi-theme="custom"] summary,
+html[data-pi-theme="custom"] [role="button"],
+html[data-pi-theme="custom"] [role="tab"],
+html[data-pi-theme="custom"] [role="radio"] {
+  cursor: url(assets/cursor-pointer.png) 0 0, pointer;
+}
+
+html[data-pi-theme="custom"] input,
+html[data-pi-theme="custom"] textarea {
+  cursor: text;
+}
+
+/* The Bunker canvas carries a faint 4px grid; color-mix keeps it visible on the
+   cream palette and on the dark one without a second rule. */
+html[data-pi-theme="custom"] {
+  background-image:
+    repeating-linear-gradient(to right, color-mix(in srgb, var(--text) 4%, transparent) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(to bottom, color-mix(in srgb, var(--text) 4%, transparent) 0 1px, transparent 1px 4px);
+}
+
+/* The terminal draws frames rather than soft cards; keep selections square. */
+html[data-pi-theme="custom"] .settings-chip,
+html[data-pi-theme="custom"] .market-card {
+  border-radius: 0;
+}
+
+/* Panel headers read as bracketed labels, like `[ 标题 ]` in the original. */
+html[data-pi-theme="custom"] .settings-general-heading::before {
+  content: "[ ";
+  color: var(--text-dim);
+}
+
+html[data-pi-theme="custom"] .settings-general-heading::after {
+  content: " ]";
+  color: var(--text-dim);
+}

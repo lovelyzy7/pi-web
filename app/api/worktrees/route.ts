@@ -3,6 +3,7 @@ import { existsSync } from "fs";
 import { addWorktree, findCurrentWorktreePath, listWorktrees, removeWorktree, resolveProject } from "@/lib/worktree";
 import { allowFileRoot, getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed } from "@/lib/file-access";
 import { projectIdentityKey } from "@/lib/project-identity";
+import { projectCwdNotice, projectCwdRefusalStatus, resolveProjectCwd } from "@/lib/project-cwd";
 
 /** Same gate as /api/files: only session cwds / project roots / explicitly
  *  allowed dirs may be inspected or mutated through this endpoint. */
@@ -14,6 +15,23 @@ async function checkCwdAllowed(cwd: string): Promise<NextResponse | null> {
   return null;
 }
 
+/** A project this machine does not have reports no worktrees, with a reason. */
+async function missingProjectResponse(cwd: string): Promise<NextResponse | null> {
+  const scope = await resolveProjectCwd(cwd, { allowedRoots: await getAllowedFileRoots() });
+  const refusal = projectCwdRefusalStatus(scope.status);
+  if (refusal) return NextResponse.json({ error: "Access denied" }, { status: refusal });
+  if (scope.status === "ok" || scope.status === "none") return null;
+  return NextResponse.json({
+    projectRoot: cwd,
+    projectKey: projectIdentityKey(cwd),
+    isGit: false,
+    isTopLevel: false,
+    currentWorktreePath: null,
+    worktrees: [],
+    cwdNotice: projectCwdNotice(scope),
+  });
+}
+
 // GET /api/worktrees?cwd=  →  { projectRoot, projectKey, isGit, isTopLevel, currentWorktreePath, worktrees }
 export async function GET(req: Request) {
   try {
@@ -21,8 +39,10 @@ export async function GET(req: Request) {
     if (!cwd) {
       return NextResponse.json({ error: "cwd is required" }, { status: 400 });
     }
-    const denied = await checkCwdAllowed(cwd);
-    if (denied) return denied;
+    // Covers both refusals: a directory outside the readable roots is denied
+    // (403) while one this machine does not have reports no worktrees at all.
+    const unavailable = await missingProjectResponse(cwd);
+    if (unavailable) return unavailable;
 
     const project = await resolveProject(cwd);
     let worktrees: Awaited<ReturnType<typeof listWorktrees>> = [];

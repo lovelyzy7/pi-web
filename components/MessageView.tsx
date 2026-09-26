@@ -3,6 +3,7 @@
 import { memo, useState, useRef, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import { MarkdownBody } from "./MarkdownBody";
+import { parseProviderError, providerErrorKindKey } from "@/lib/provider-error";
 import { ImagePreview } from "./ImagePreview";
 import { ThinkingIcon } from "./ThinkingIcon";
 import { copyText } from "@/lib/clipboard";
@@ -813,10 +814,10 @@ function AssistantMessageView({
           style={{
             marginTop: blocks.length > 0 ? 8 : 0,
             padding: "7px 10px",
-            border: "1px solid rgba(239,68,68,0.3)",
+            border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
             borderRadius: 6,
             background: "rgba(239,68,68,0.07)",
-            color: "#ef4444",
+            color: "var(--danger)",
             fontFamily: "var(--font-mono)",
             fontSize: 12,
             lineHeight: 1.5,
@@ -919,7 +920,47 @@ function BlockView({ block, searchTarget, toolResults, isStreaming, streamingDur
 }
 
 function TextBlock({ block, isStreaming, cwd, onOpenFile }: { block: TextContent; isStreaming?: boolean; cwd?: string; onOpenFile?: (filePath: string, page?: number) => void }) {
+  // A failed provider call is recorded as ordinary text (`Error: 402 {…}`).
+  // Rendering that raw JSON in a chat bubble hides the one line that matters,
+  // so it becomes a card with the reason, the provider's message and the id.
+  const providerError = block.text.trim().length < 4000 ? parseProviderError(block.text) : null;
+  if (providerError) return <ProviderErrorCard error={providerError} />;
   return <SafeMarkdownBody isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile}>{block.text}</SafeMarkdownBody>;
+}
+
+/**
+ * A model provider failure, described in the interface language.
+ *
+ * The raw text stays available under the disclosure: it is what a provider's
+ * support asks for, and silently replacing it would make the report harder.
+ */
+export function ProviderErrorCard({ error }: { error: ReturnType<typeof parseProviderError> & object }) {
+  const { t } = useI18n();
+  const params = {
+    status: error.status === null ? "—" : String(error.status),
+    detail: error.message || error.code || "",
+  };
+  return (
+    <div className="provider-error-card" data-provider-error={error.kind} role="alert">
+      <div className="provider-error-head">
+        <span className="provider-error-title">{t("chat.providerErrorTitle")}</span>
+        <span className="provider-error-status">{t("chat.providerErrorStatus", { status: params.status })}</span>
+      </div>
+      <p className="provider-error-reason">{t(providerErrorKindKey(error.kind), params)}</p>
+      {(error.message || error.code) && (
+        <p className="provider-error-detail">
+          <code>{error.message || error.code}</code>
+        </p>
+      )}
+      {error.requestId && (
+        <p className="provider-error-request">{t("chat.providerErrorRequestId", { id: error.requestId })}</p>
+      )}
+      <details className="provider-error-raw">
+        <summary>{t("chat.providerErrorDetails")}</summary>
+        <pre>{error.raw}</pre>
+      </details>
+    </div>
+  );
 }
 
 export function ThinkingBlock({ block, duration, sessionId, entryId, blockIndex }: {
@@ -1022,7 +1063,7 @@ export function ThinkingBlock({ block, duration, sessionId, entryId, blockIndex 
           style={{
             flex: 1,
             minWidth: 0,
-            color: error ? "#f87171" : "var(--text-muted)",
+            color: error ? "var(--danger)" : "var(--text-muted)",
             whiteSpace: "pre-wrap",
             overflowWrap: "anywhere",
           }}
@@ -1099,7 +1140,7 @@ function ToolCallBlock({ block, result, duration, onOpenSession }: { block: Tool
             textAlign: "left",
           }}
         >
-          <span style={{ color: isError ? "#f87171" : "#16a34a", fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, flexShrink: 0 }}>
+          <span style={{ color: isError ? "var(--danger)" : "var(--success)", fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, flexShrink: 0 }}>
             {block.toolName}
           </span>
           <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
@@ -1289,7 +1330,7 @@ function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" |
   const marker =
     cell.type === "added" ? "+" : cell.type === "removed" ? "-" : " ";
   const markerColor =
-    cell.type === "added" ? "#22c55e" : cell.type === "removed" ? "#f87171" : "var(--text-dim)";
+    cell.type === "added" ? "var(--success)" : cell.type === "removed" ? "var(--danger)" : "var(--text-dim)";
 
   return (
     <div
@@ -1359,8 +1400,8 @@ function PatchTextView({ text }: { text: string }) {
           kind === "hunk" ? "rgba(96,165,250,0.12)" :
           "transparent";
         const color =
-          kind === "added" ? "#22c55e" :
-          kind === "removed" ? "#f87171" :
+          kind === "added" ? "var(--success)" :
+          kind === "removed" ? "var(--danger)" :
           kind === "hunk" ? "var(--accent)" :
           "var(--text)";
 
@@ -1371,9 +1412,9 @@ function PatchTextView({ text }: { text: string }) {
               display: "flex",
               background: bg,
               borderLeft: kind === "added"
-                ? "3px solid #22c55e"
+                ? "3px solid var(--success)"
                 : kind === "removed"
-                ? "3px solid #f87171"
+                ? "3px solid var(--danger)"
                 : kind === "hunk"
                 ? "3px solid var(--accent)"
                 : "3px solid transparent",
@@ -1510,7 +1551,7 @@ function PairedResult({ text, isEmpty, isError }: {
         style={{
           margin: 0,
           padding: "8px 10px",
-          color: isError ? "#f87171" : (isEmpty ? "var(--text-dim)" : "var(--text-muted)"),
+          color: isError ? "var(--danger)" : (isEmpty ? "var(--text-dim)" : "var(--text-muted)"),
           fontSize: "calc(12px + var(--chat-font-size-offset, 0px))",
           lineHeight: 1.5,
           overflow: "auto",

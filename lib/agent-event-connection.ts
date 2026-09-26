@@ -10,6 +10,11 @@ export interface AgentEventSourceLike {
 export type AgentEventConnectionStatus = "ready_timeout" | "startup_error" | "closed";
 
 export class AgentEventConnectionError extends Error {
+  /** Set when the server named a cause the UI can explain (e.g. `cwd_missing`). */
+  code?: string;
+  /** The directory that is missing, for `cwd_missing`. */
+  cwd?: string;
+
   constructor(public readonly status: AgentEventConnectionStatus, message?: string) {
     super(message ?? (
       status === "ready_timeout"
@@ -152,7 +157,12 @@ export class AgentEventConnection {
         this.stopRetrying();
       } else if (event.type === "startup_error") {
         const message = typeof event.errorMessage === "string" ? event.errorMessage : undefined;
-        this.fail(connection, new AgentEventConnectionError("startup_error", message));
+        const code = typeof event.errorCode === "string" ? event.errorCode : undefined;
+        const cwd = typeof event.cwd === "string" ? event.cwd : undefined;
+        const startupError = new AgentEventConnectionError("startup_error", message);
+        if (code) startupError.code = code;
+        if (cwd) startupError.cwd = cwd;
+        this.fail(connection, startupError);
         return;
       }
       this.options.onEvent(event);

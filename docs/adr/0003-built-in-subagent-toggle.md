@@ -1,23 +1,22 @@
-# Built-in sub-agent activation and extension precedence
+# 0003 — 内置子代理的启用与扩展优先级
 
-Pi Web's integrated sub-agent implementation is an inline, hidden extension.
-It is disabled by default and controlled by the global
-`~/.pi/agent/agents/settings.json` setting `builtInEnabled`.
+## 状态
 
-The inline extension factory remains installed in every ordinary, non-Chat-only
-resource loader so an AgentSession reload can enable or disable its tools without
-recreating the wrapper. When disabled, the factory registers no tools. A runtime
-guard also rejects stale `Agent` calls after the setting is turned off but before
-the parent session is reloaded.
+已接受。
 
-When the integrated extension is enabled, it takes precedence over an enabled
-legacy `pi-subagents` extension. A legacy extension is suppressed when its package
-source or path identifies it as `pi-subagents` and it registers any of the reserved
-tool names: `Agent`, `get_subagent_result`, or `steer_subagent`. Unrelated extensions
-are never removed solely because they use one of those names; the SDK reports those
-collisions normally.
+## 背景
 
-When the integrated extension is disabled, Pi Web does not suppress the legacy
-package, so users can continue to manage and use that implementation through the
-Plugins settings. Existing child sessions remain readable, and already-running
-children are not aborted when the setting changes.
+Pi Web 自带一套子代理实现，同时生态里存在另一个同名功能的扩展（`pi-subagents`）。两者都会注册 `Agent`、`get_subagent_result`、`steer_subagent` 这些工具名，同时启用会让模型看到两套语义不同、名字相同的工具。
+
+## 决策
+
+**Pi Web 的内置子代理是一个内联的隐藏扩展，默认关闭，由全局设置 `~/.pi/agent/agents/settings.json` 的 `builtInEnabled` 控制。**
+
+- 内联扩展工厂**始终**安装进每一个普通的（非 Chat only）资源加载器，这样一次 AgentSession 重载就能启用或禁用它，而不必重建 wrapper。禁用时工厂不注册任何工具。运行期还有一道守卫：设置刚被关掉、父会话尚未重载时到达的旧 `Agent` 调用会被拒绝。
+- 内置扩展启用时，它**优先于**已启用的旧 `pi-subagents` 扩展。只有当某个旧扩展的包来源或路径表明它就是 `pi-subagents`，并且注册了保留工具名之一时，它才会被抑制。仅因为名字相同就移除无关扩展是不允许的：那类冲突由 SDK 正常报告。
+- 内置扩展禁用时，Pi Web **不**抑制旧的软件包，用户可以继续通过插件设置管理和使用那一套实现。
+
+## 影响
+
+- 切换设置后需要显式重载当前会话才会生效；子会话仍然可读，正在运行的子代理不会因为改设置而被中止。
+- 保留工具名（`Agent`、`get_subagent_result`、`steer_subagent`）成为 Pi Web 与扩展之间的约定：扩展可以注册它们，但只有一套能生效，且由用户的选择决定是哪一套。

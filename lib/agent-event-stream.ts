@@ -4,6 +4,7 @@ import {
   type AgentEventLike,
 } from "./agent-event-wire";
 import { acquireSessionLivenessLease } from "./session-liveness";
+import { isCwdMissingError } from "./rpc-manager";
 
 export interface AgentEventStreamSession {
   readonly isStreaming: boolean;
@@ -158,6 +159,9 @@ export function createAgentEventStream(
           encode({
             type: "startup_error",
             errorMessage: `Failed to start agent: ${errorMessage(error)}`,
+            // The working directory is gone: the UI explains that itself rather
+            // than showing a raw path message as an agent failure.
+            ...(isCwdMissingError(error) ? { errorCode: "cwd_missing", cwd: error.cwd } : {}),
           });
           cleanup(true);
         }

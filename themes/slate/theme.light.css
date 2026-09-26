@@ -1,0 +1,19 @@
+/* Slate 的浅色变体：跟随系统或手动选择浅色时取代 theme.css。 */
+
+html[data-pi-theme="custom"] {
+  --bg: #f5f7fa;
+  --bg-panel: #ffffff;
+  --bg-hover: #eaeef4;
+  --bg-selected: #dfe6ef;
+  --bg-subtle: rgba(0, 0, 0, 0.04);
+  --border: #d3dae3;
+  --text: #1c2430;
+  --text-muted: #4d5b6b;
+  --text-dim: #6d7a89;
+  --accent: #3b6fd4;
+  --accent-hover: #2f5cb4;
+  --accent-contrast: #ffffff;
+  --user-bg: #e6edf9;
+  --assistant-bg: #ffffff;
+  --tool-bg: #eef2f7;
+}

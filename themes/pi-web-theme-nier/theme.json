@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "id": "nier-automata",
+  "name": "NieR:Automata",
+  "version": "1.0.0",
+  "author": "pi-web",
+  "homepage": "https://github.com/agegr/pi-web-theme-nier",
+  "license": "MIT",
+  "base": "light",
+  "piWeb": ">=0.9 <1.0",
+  "description": {
+    "en": "YoRHa Bunker terminal: cream canvas, charcoal frames, monospace data, and the NieR cursor set.",
+    "zh-CN": "寄叶地堡终端：米白画布、炭黑边框、等宽数据字体，以及整套 NieR 光标。",
+    "zh-TW": "寄葉地堡終端：米白畫布、炭黑邊框、等寬資料字體，以及整套 NieR 游標。"
+  },
+  "variables": [
+    "--bg", "--bg-panel", "--bg-hover", "--bg-selected", "--border", "--bg-subtle",
+    "--text", "--text-muted", "--text-dim",
+    "--accent", "--accent-hover", "--accent-contrast",
+    "--user-bg", "--assistant-bg", "--tool-bg",
+    "--danger", "--success", "--warning", "--info",
+    "--terminal-bg", "--terminal-fg", "--terminal-cursor", "--qr-bg"
+  ],
+  "styles": ["theme.css"],
+  "variants": {
+    "light": "theme.light.css",
+    "dark": "theme.dark.css"
+  },
+  "assets": [
+    "assets/cursor-default.png",
+    "assets/cursor-pointer.png"
+  ]
+}

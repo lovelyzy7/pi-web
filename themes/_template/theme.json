@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "id": "my-theme",
+  "name": "My Theme",
+  "version": "1.0.0",
+  "author": "your name",
+  "homepage": "https://github.com/you/pi-web-theme-my-theme",
+  "license": "MIT",
+  "piWeb": ">=0.9 <1.0",
+  "base": "dark",
+  "description": {
+    "en": "A starter theme for Pi Web.",
+    "zh-CN": "Pi Web 主题模板。"
+  },
+  "variables": ["--bg", "--bg-panel", "--text", "--accent"],
+  "styles": ["theme.css"],
+  "assets": ["assets/grain.svg"]
+}

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "id": "slate",
+  "name": "Slate",
+  "version": "1.0.0",
+  "author": "pi-web",
+  "license": "MIT",
+  "piWeb": ">=0.9 <1.0",
+  "base": "dark",
+  "description": {
+    "en": "A quiet blue-grey palette, shipped as the example theme in this repository's themes/ folder.",
+    "zh-CN": "安静的蓝灰配色，作为本仓库 themes/ 文件夹里的示例主题。"
+  },
+  "variables": ["--bg", "--bg-panel", "--border", "--text", "--accent"],
+  "variants": { "light": "theme.light.css" },
+  "styles": ["theme.css"]
+}

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const panelSource = await readFile(new URL("./SettingsPanel.tsx", import.meta.url), "utf8");
+const themeSettingsSource = await readFile(new URL("./ThemeSettings.tsx", import.meta.url), "utf8");
 const cssSource = await readFile(new URL("../app/settings.css", import.meta.url), "utf8");
 const globalCssSource = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 const shellSource = await readFile(new URL("./AppShell.tsx", import.meta.url), "utf8");
@@ -25,12 +26,35 @@ test("opens one settings panel from direct sidebar shortcuts", () => {
 });
 
 test("keeps every requested configuration surface inside the settings panel", () => {
-  for (const section of ["general", "models", "skills", "agents", "plugins"]) {
+  for (const section of ["general", "account", "models", "market", "skills", "agents", "plugins", "updates"]) {
     assert.match(panelSource, new RegExp(`id: "${section}"`));
   }
   for (const component of ["ModelsConfig", "SkillsConfig", "AgentsConfig", "PluginsConfig"]) {
     assert.match(panelSource, new RegExp(`<${component} embedded`));
   }
+});
+
+test("the account centre, marketplace, and updates live in the panel, not on their own pages", async () => {
+  for (const component of ["AccountSettings", "MarketSettings", "UpdatesSettings"]) {
+    assert.match(panelSource, new RegExp(`<${component} embedded`));
+  }
+  // Each of them still has a thin page host for deep links.
+  for (const [file, component] of [
+    ["../app/user/page.tsx", "UserPage"],
+    ["../app/market/page.tsx", "MarketPage"],
+    ["../app/updates/page.tsx", "UpdatesPage"],
+  ]) {
+    assert.match(await readFile(new URL(file, import.meta.url), "utf8"), new RegExp(`<${component}`));
+  }
+  // The sidebar entry opens the panel instead of navigating away.
+  assert.match(shellSource, /setSettingsSection\("account"\)/);
+  assert.match(shellSource, /onOpenSettings=\{setSettingsSection\}/);
+});
+
+test("a settings section uses the panel width instead of leaving it empty", () => {
+  assert.doesNotMatch(cssSource, /\.settings-general \{[\s\S]*?max-width: 680px/);
+  assert.match(cssSource, /\.settings-general-section > \.settings-general-description \{[\s\S]*?max-width: 760px/);
+  assert.doesNotMatch(cssSource, /\.settings-general-wide/);
 });
 
 test("restores the settings section and each list detail selection", async () => {
@@ -57,10 +81,15 @@ test("offers five palettes and system theme selection with native radios", () =>
   for (const preference of ["light", "dark", "mist", "rose", "pine", "auto"]) {
     assert.match(themeOptionsSource, new RegExp(`id: "${preference}"`));
   }
-  assert.match(panelSource, /THEME_OPTIONS\.map/);
-  assert.match(panelSource, /type="radio"/);
-  assert.match(panelSource, /setThemePreference\(option\.id\)/);
+  // The palette picker lives in the theme section, not in General.
+  assert.match(themeSettingsSource, /THEME_OPTIONS\.map/);
+  assert.match(themeSettingsSource, /type="radio"/);
+  assert.match(themeSettingsSource, /setThemePreference\(option\.id\)/);
   assert.match(themeSource, /const setThemePreference = useCallback/);
+  assert.doesNotMatch(panelSource, /THEME_OPTIONS/);
+  // The panel hands the theme section the selected project: local theme
+  // discovery scans that project's own themes/ folder.
+  assert.match(panelSource, /sectionHost\("theme", <ThemeSettings cwd=\{cwd\} \/>\)/);
 });
 
 test("keeps language selection in General settings", () => {

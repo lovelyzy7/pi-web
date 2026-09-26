@@ -25,6 +25,26 @@ export function isPromptRejectedError(error: unknown): error is AgentCommandErro
     && error.accepted === false;
 }
 
+/**
+ * The session's working directory is gone on the server (usually a container
+ * started without that project mounted). The prompt was definitively rejected:
+ * there is nothing to wait for, so the UI reports it immediately.
+ */
+export function isCwdMissingCommandError(error: unknown): error is AgentCommandError {
+  return error instanceof AgentCommandError && error.code === "cwd_missing";
+}
+
+/**
+ * The session directory a failed start named, from either error path: the POST
+ * reply (`AgentCommandError`) or the event stream (`AgentEventConnectionError`).
+ */
+export function cwdMissingFromError(error: unknown): { cwd: string } | null {
+  if (typeof error !== "object" || error === null) return null;
+  if ((error as { code?: unknown }).code !== "cwd_missing") return null;
+  const cwd = (error as { cwd?: unknown }).cwd;
+  return { cwd: typeof cwd === "string" ? cwd : "" };
+}
+
 export async function sendAgentCommand<T = unknown>(
   sessionId: string,
   command: Record<string, unknown>,

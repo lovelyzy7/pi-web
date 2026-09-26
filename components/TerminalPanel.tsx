@@ -52,11 +52,13 @@ export function TerminalPanel({ tab, active, onRestart, onClosed, onCloseError }
       screenReaderMode: true,
       disableStdin: true,
       theme: {
+        // xterm parses these values in JavaScript, so they stay literal: a
+        // terminal keeps its own palette instead of following app themes.
         background: "#111318", foreground: "#d7dce5", cursor: "#60a5fa",
         selectionBackground: "#365b8a",
-        black: "#1d222b", red: "#f87171", green: "#4ade80", yellow: "#facc15",
-        blue: "#60a5fa", magenta: "#c084fc", cyan: "#22d3ee", white: "#e5e7eb",
-        brightBlack: "#6b7280", brightRed: "#fca5a5", brightGreen: "#86efac",
+        black: "#1d222b", red: "var(--danger)", green: "var(--success)", yellow: "#facc15",
+        blue: "var(--info)", magenta: "#c084fc", cyan: "#22d3ee", white: "#e5e7eb",
+        brightBlack: "#6b7280", brightRed: "var(--danger)", brightGreen: "#86efac",
         brightYellow: "#fde047", brightBlue: "#93c5fd", brightMagenta: "#d8b4fe",
         brightCyan: "#67e8f9", brightWhite: "#ffffff",
       },

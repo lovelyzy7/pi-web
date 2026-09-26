@@ -33,15 +33,18 @@ export async function POST(req: Request) {
         ...(commandType === "prompt"
           ? { code: "prompt_rejected", accepted: false }
           : {}),
-      }, { status: 400 });
+      }, { status: 409 });
     }
     if (!existsSync(cwd)) {
+      // Same shape as the existing-session route: `cwd_missing` names the real
+      // problem, so the UI can explain it instead of blaming the model. It is
+      // also a definitive rejection — there is no run to wait for.
       return NextResponse.json({
         error: `Directory does not exist: ${cwd}`,
-        ...(commandType === "prompt"
-          ? { code: "prompt_rejected", accepted: false }
-          : {}),
-      }, { status: 400 });
+        ...(commandType === "prompt" ? { accepted: false } : {}),
+        code: "cwd_missing",
+        cwd,
+      }, { status: 409 });
     }
 
     // Use a one-time key so startRpcSession's lock doesn't conflict with real session ids

@@ -2,9 +2,6 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "@/hooks/useI18n";
-import { useTheme } from "@/hooks/useTheme";
-import { THEME_OPTIONS } from "@/lib/theme";
-import { ThemeIcon } from "./ThemeIcon";
 import {
   CHAT_CONTENT_WIDTH_DEFAULT,
   CHAT_CONTENT_WIDTH_MAX,
@@ -24,6 +21,10 @@ import {
   isThinkingExpandedByDefault,
   setThinkingExpandedByDefault,
 } from "@/lib/thinking-expansion-preference";
+import { AccountSettings } from "./UserPage";
+import { ThemeSettings } from "./ThemeSettings";
+import { MarketSettings } from "./MarketPage";
+import { UpdatesSettings } from "./UpdatesPage";
 import { ModelsConfig } from "./ModelsConfig";
 import { setupPushSubscription } from "@/lib/push-client";
 import { SkillsConfig } from "./SkillsConfig";
@@ -59,12 +60,15 @@ export function SettingsSectionIcon({ section, size = 16, strokeWidth = 1.8 }: {
   if (section === "models") return <svg {...common}><rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" /><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 15h3M1 9h3M1 15h3" /></svg>;
   if (section === "skills") return <svg {...common}><path d="m12 2-10 5 10 5 10-5-10-5Z" /><path d="m2 12 10 5 10-5M2 17l10 5 10-5" /></svg>;
   if (section === "agents") return <svg {...common} className="settings-section-icon is-agent"><rect x="5" y="7" width="14" height="11" rx="2" /><path d="M9 11h.01M15 11h.01M9 15h6M12 7V4M10 4h4" /></svg>;
+  if (section === "theme") return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 0 0 18Z" /><path d="M12 3c2.5 3 2.5 15 0 18" /></svg>;
+  if (section === "account") return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M5 21v-1a7 7 0 0 1 14 0v1" /><path d="M17 3.5 19 5.5 22 2.5" /></svg>;
+  if (section === "market") return <svg {...common}><path d="M3 9h18l-1.5 11h-15L3 9Z" /><path d="M8 9V6a4 4 0 0 1 8 0v3" /></svg>;
+  if (section === "updates") return <svg {...common}><path d="M12 3v12" /><polyline points="7.5 10.5 12 15 16.5 10.5" /><path d="M4 19h16" /></svg>;
   return <svg {...common}><path d="M9 7V2M15 7V2M6 13V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v5a6 6 0 0 1-12 0ZM12 19v3" /></svg>;
 }
 
 function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, onQuoteSelectionChange }: Pick<Props, "sessionId" | "onSessionReloaded" | "quoteSelectionEnabled" | "onQuoteSelectionChange">) {
   const { locale, setLocale, supportedLocales, t } = useI18n();
-  const { preference, setThemePreference } = useTheme();
   const { width: chatContentWidth, setWidth: setChatContentWidth, fontSize, setFontSize } = useChatAppearance();
   const [shellSettings, setShellSettings] = useState<ShellToolSettingsResponse | null>(null);
   const [shellSaving, setShellSaving] = useState(false);
@@ -161,32 +165,7 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
     <div className="settings-general">
       <h2 className="settings-general-title">{t("settings.general")}</h2>
 
-      <section className="settings-general-section">
-        <h3 className="settings-general-heading">{t("settings.appearance")}</h3>
-        <div role="radiogroup" aria-label={t("settings.appearance")} className="settings-theme-options">
-          {THEME_OPTIONS.map((option) => {
-            const selected = preference === option.id;
-            return (
-              <label
-                key={option.id}
-                className="settings-theme-option"
-              >
-                <input
-                  type="radio"
-                  name="theme"
-                  value={option.id}
-                  checked={selected}
-                  onChange={() => setThemePreference(option.id)}
-                  className="sr-only"
-                />
-                <ThemeIcon preference={option.id} />
-                <span className="settings-theme-option-label">{t(option.label)}</span>
-              </label>
-            );
-          })}
-        </div>
-      </section>
-
+      <div className="settings-general-sections">
       <section className="settings-general-section">
         <h3 className="settings-general-heading">{t("settings.chat")}</h3>
         <div className="settings-chat-options">
@@ -346,6 +325,7 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
           {logoutError && <p role="alert" className="settings-general-error">{logoutError}</p>}
         </section>
       )}
+      </div>
     </div>
   );
 }
@@ -358,10 +338,14 @@ export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessi
   );
   const sections: { id: SettingsSection; label: string; requiresProject: boolean }[] = [
     { id: "general", label: t("settings.general"), requiresProject: false },
+    { id: "theme", label: t("settings.theme"), requiresProject: false },
+    { id: "account", label: t("user.title"), requiresProject: false },
     { id: "models", label: t("common.models"), requiresProject: false },
+    { id: "market", label: t("market.title"), requiresProject: false },
     { id: "skills", label: t("common.skills"), requiresProject: true },
     { id: "agents", label: t("common.agents"), requiresProject: true },
     { id: "plugins", label: t("common.plugins"), requiresProject: true },
+    { id: "updates", label: t("updates.title"), requiresProject: false },
   ];
 
   useEffect(() => setLastSettingsSection(initialSection), [initialSection]);
@@ -447,10 +431,14 @@ export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessi
 
         <main className="settings-dialog-main">
           {sectionHost("general", <GeneralSettings sessionId={sessionId} onSessionReloaded={onSessionReloaded} quoteSelectionEnabled={quoteSelectionEnabled} onQuoteSelectionChange={onQuoteSelectionChange} />)}
+          {sectionHost("theme", <ThemeSettings cwd={cwd} />)}
+          {sectionHost("account", <AccountSettings embedded />)}
           {sectionHost("models", <ModelsConfig embedded cwd={cwd} onClose={onClose} />)}
+          {sectionHost("market", <MarketSettings embedded cwd={cwd} />)}
           {cwd && sectionHost("skills", <SkillsConfig embedded key={cwd} cwd={cwd} onClose={onClose} />)}
           {cwd && sectionHost("agents", <AgentsConfig embedded key={cwd} cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onSessionReloaded} />)}
-          {cwd && sectionHost("plugins", <PluginsConfig embedded key={cwd} cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onSessionReloaded} />)}
+          {cwd && sectionHost("plugins", <PluginsConfig embedded key={cwd} cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onSessionReloaded} onOpenSection={activateSection} />)}
+          {sectionHost("updates", <UpdatesSettings embedded />)}
         </main>
       </div>
     </div>

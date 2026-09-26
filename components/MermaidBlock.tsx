@@ -4,9 +4,27 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "reac
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vs } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { prepareHighlightTheme, splitConflictingShorthands } from "@/lib/highlight-style";
 import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/hooks/useI18n";
 import { copyText } from "@/lib/clipboard";
+
+/**
+ * Prepared once: react-syntax-highlighter's themes mix `background` with
+ * `backgroundColor` across palettes, and one DOM node may not carry both forms
+ * (React warns, and the styling can end up wrong). See `lib/highlight-style.ts`.
+ */
+const HIGHLIGHT_THEME_LIGHT = prepareHighlightTheme(vs);
+const HIGHLIGHT_THEME_DARK = prepareHighlightTheme(vscDarkPlus);
+const CODE_CUSTOM_STYLE = splitConflictingShorthands({
+  margin: 0,
+  padding: "11px 13px",
+  fontSize: "calc(12.5px + var(--chat-font-size-offset, 0px))",
+  lineHeight: 1.62,
+  borderRadius: 0,
+  backgroundColor: "color-mix(in srgb, var(--bg) 92%, var(--bg-panel))",
+});
+
 
 interface MermaidBlockProps {
   code: string;
@@ -308,17 +326,10 @@ export const CodeBlock = memo(function CodeBlock({ code, lang, headerAction, isS
       ) : (
         <SyntaxHighlighter
           language={lang || "text"}
-          style={isDark ? vscDarkPlus : vs}
+          style={isDark ? HIGHLIGHT_THEME_DARK : HIGHLIGHT_THEME_LIGHT}
           showLineNumbers
           lineNumberStyle={{ color: "var(--text-dim)", fontStyle: "normal" }}
-          customStyle={{
-            margin: 0,
-            padding: "11px 13px",
-            fontSize: "calc(12.5px + var(--chat-font-size-offset, 0px))",
-            lineHeight: 1.62,
-            borderRadius: 0,
-            background: "color-mix(in srgb, var(--bg) 92%, var(--bg-panel))",
-          }}
+          customStyle={CODE_CUSTOM_STYLE}
           codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
         >
           {code}

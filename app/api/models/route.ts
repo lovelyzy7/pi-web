@@ -1,4 +1,5 @@
-import { stat } from "fs/promises";
+import { statSync } from "fs";
+import { homedir } from "os";
 import { resolve } from "path";
 import { createAgentSessionServices, getAgentDir, type SettingsManager } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
@@ -10,6 +11,7 @@ import {
 } from "@/lib/models-cache";
 import { resolveVisibleModels, selectInitialModelScope } from "@/lib/model-scope";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { resolveModelCwd, type ModelCwdNotice } from "@/lib/model-cwd";
 import { projectTrustReloadOptions } from "@/lib/project-trust";
 
 export const dynamic = "force-dynamic";
@@ -107,26 +109,43 @@ const EMPTY_MODELS: ModelsData = {
 };
 
 export async function GET(req: Request) {
-  const requestedCwd = new URL(req.url).searchParams.get("cwd") || process.cwd();
-  const cwd = resolve(requestedCwd);
-
-  let cwdStat;
-  try {
-    cwdStat = await stat(cwd);
-  } catch {
-    return Response.json({ error: `Directory does not exist: ${cwd}` }, { status: 400 });
-  }
-  if (!cwdStat.isDirectory()) {
-    return Response.json({ error: `Not a directory: ${cwd}` }, { status: 400 });
-  }
+  const requestedParam = new URL(req.url).searchParams.get("cwd");
   const allowedRoots = await getAllowedFileRoots();
-  if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-    return Response.json({ error: "Access denied" }, { status: 403 });
-  }
+  const { cwd, notice } = resolveModelCwd(requestedParam ? resolve(requestedParam) : null, {
+    // The listing must not fail because the browser still remembers a project
+    // that this machine cannot see (a container started with the host's agent
+    // directory mounted is the usual reason). It loads from a directory that
+    // exists and reports the mismatch instead — see lib/model-cwd.ts.
+    exists: (path) => statSync(path, { throwIfNoEntry: false }) !== undefined,
+    isDirectory: (path) => statSync(path, { throwIfNoEntry: false })?.isDirectory() === true,
+    isAllowed: (path) => isExistingFilePathAllowed(path, allowedRoots),
+    candidates: modelCwdCandidates(allowedRoots),
+  });
 
   try {
-    return Response.json(await loadModelsWithCache(cwd, () => loadModels(cwd)));
+    const data = await loadModelsWithCache(cwd, () => loadModels(cwd));
+    return Response.json({
+      ...data,
+      cwd,
+      ...(notice ? { cwdNotice: notice } : {}),
+    });
   } catch {
-    return Response.json(withSafeModelLoadFailure(EMPTY_MODELS));
+    return Response.json({
+      ...withSafeModelLoadFailure(EMPTY_MODELS),
+      cwd,
+      ...(notice ? { cwdNotice: notice } : {}),
+    });
   }
 }
+
+/**
+ * Where the model list may load from when the requested directory is gone, in
+ * preference order: the projects the sidebar can still show, then the data
+ * directory, then whatever the process was started in.
+ */
+function modelCwdCandidates(allowedRoots: Set<string>): string[] {
+  const roots = [...allowedRoots].sort((a, b) => a.localeCompare(b));
+  return [...roots, getAgentDir(), process.cwd(), homedir()];
+}
+
+export type { ModelCwdNotice };

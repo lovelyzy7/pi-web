@@ -39,6 +39,14 @@
   --assistant-bg: #ffffff;
   --tool-bg: #f9fafb;
   --bg-subtle: rgba(0,0,0,0.03);
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+  --info: #2563eb;
+  --terminal-bg: #111318;
+  --terminal-fg: #d7dce5;
+  --terminal-cursor: var(--info);
+  --qr-bg: #ffffff;
   --chat-content-max-width: 820px;
   --chat-content-font-size: 14px;
 }
@@ -61,6 +69,14 @@ html.dark,
   --assistant-bg: #1a1a1a;
   --tool-bg: #222222;
   --bg-subtle: rgba(255,255,255,0.04);
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #f59e0b;
+  --info: #60a5fa;
+  --terminal-bg: #111318;
+  --terminal-fg: #d7dce5;
+  --terminal-cursor: var(--info);
+  --qr-bg: #ffffff;
 }
 
 [data-theme="mist"] {
@@ -80,6 +96,14 @@ html.dark,
   --assistant-bg: #f4f8f7;
   --tool-bg: #ecf3f0;
   --bg-subtle: rgba(24,65,50,0.04);
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+  --info: #2563eb;
+  --terminal-bg: #111318;
+  --terminal-fg: #d7dce5;
+  --terminal-cursor: var(--info);
+  --qr-bg: #ffffff;
 }
 
 [data-theme="rose"] {
@@ -99,6 +123,14 @@ html.dark,
   --assistant-bg: #fcf7f8;
   --tool-bg: #f7eef2;
   --bg-subtle: rgba(89,39,62,0.04);
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+  --info: #2563eb;
+  --terminal-bg: #111318;
+  --terminal-fg: #d7dce5;
+  --terminal-cursor: var(--info);
+  --qr-bg: #ffffff;
 }
 
 html[data-theme="pine"],
@@ -119,6 +151,14 @@ html[data-theme="pine"],
   --assistant-bg: #19201f;
   --tool-bg: #222d29;
   --bg-subtle: rgba(210,236,219,0.04);
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #f59e0b;
+  --info: #60a5fa;
+  --terminal-bg: #111318;
+  --terminal-fg: #d7dce5;
+  --terminal-cursor: var(--info);
+  --qr-bg: #ffffff;
 }
 
 /* WebKit reports dvh/innerHeight without the status-bar strip for installed
@@ -286,13 +326,13 @@ body {
 .web-login-error {
   min-height: 17px;
   margin: 7px 4px 0;
-  color: #dc2626;
+  color: var(--danger);
   font-size: 11px;
   line-height: 17px;
 }
 
 html.dark .web-login-error {
-  color: #f87171;
+  color: var(--danger);
 }
 
 .web-login-form button {
@@ -328,6 +368,43 @@ html.dark .web-login-error {
   cursor: not-allowed;
 }
 
+/* First-run setup shares the login surface but stacks three fields. */
+.web-setup-heading {
+  margin: 0 0 4px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.web-setup-description {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.web-setup-field {
+  margin-bottom: 8px;
+}
+
+.web-setup-hint {
+  margin: 0 0 10px;
+  padding: 0 4px;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.web-setup-actions {
+  display: flex;
+  margin-top: 14px;
+}
+
+.web-setup-actions button {
+  width: 100%;
+  justify-content: center;
+}
+
 .terminal-panel {
   display: grid;
   grid-template-rows: 38px auto minmax(0, 1fr);
@@ -335,7 +412,7 @@ html.dark .web-login-error {
   height: 100%;
   min-width: 0;
   min-height: 0;
-  background: #111318;
+  background: var(--terminal-bg);
 }
 
 .terminal-panel-header {
@@ -372,9 +449,9 @@ html.dark .web-login-error {
   background: #facc15;
 }
 
-.terminal-status-dot.is-ready { background: #4ade80; }
+.terminal-status-dot.is-ready { background: var(--success); }
 .terminal-status-dot.is-exited,
-.terminal-status-dot.is-error { background: #f87171; }
+.terminal-status-dot.is-error { background: var(--danger); }
 
 .terminal-panel-header button {
   display: inline-flex;
@@ -407,7 +484,7 @@ html.dark .web-login-error {
   padding: 7px 12px;
   border-bottom: 1px solid #5f2424;
   background: #321b1b;
-  color: #fca5a5;
+  color: var(--danger);
   font-family: var(--font-mono);
   font-size: 11px;
 }
@@ -430,7 +507,7 @@ html.dark .web-login-error {
 }
 
 .terminal-xterm .xterm-viewport {
-  background-color: #111318;
+  background-color: var(--terminal-bg);
 }
 
 /*
@@ -1937,4 +2014,85 @@ span.token.table {
   .chat-input-textarea {
     font-size: max(16px, var(--chat-content-font-size, 14px)) !important;
   }
+}
+
+/* Secondary action under the login composer (back from the two-factor step). */
+.web-login-back {
+  display: block;
+  margin: 10px auto 0;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.web-login-back:not(:disabled):hover {
+  color: var(--accent);
+}
+
+/* A model provider failure in the transcript: a card instead of raw JSON. */
+.provider-error-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.provider-error-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.provider-error-title {
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.provider-error-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.provider-error-reason,
+.provider-error-detail,
+.provider-error-request {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.provider-error-detail code,
+.provider-error-request {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.provider-error-raw summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.provider-error-raw pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

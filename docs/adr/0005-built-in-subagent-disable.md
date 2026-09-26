@@ -1,81 +1,38 @@
-# 0005 — A built-in sub-agent is switched off in settings, not copied to a file
+# 0005 — 内置子代理在设置里关闭，而不是复制成文件
 
-## Status
+## 状态
 
-Accepted.
+已接受。
 
-## Context
+## 背景
 
-Pi Web ships three built-in profiles (`general-purpose`, `explore`, `plan`) as
-constants in `lib/subagents.ts`. Everything else about a profile lives in a
-markdown file — `~/.pi/agent/agents/*.md`, `.agents/agents/*.md`, or
-`.pi/agents/*.md` — whose `enabled: false` frontmatter key switches it off.
+Pi Web 把三个内置 profile（`general-purpose`、`explore`、`plan`）作为常量放在 `lib/subagents.ts` 里。其余 profile 都活在 markdown 文件里 —— `~/.pi/agent/agents/*.md`、`.agents/agents/*.md` 或 `.pi/agents/*.md` —— 用 frontmatter 的 `enabled: false` 关闭。
 
-A built-in has no such file, so the Agents panel rendered its switch disabled
-along with the rest of the form, and the only way to turn one off was to write a
-same-name file that shadows it (`#874`). That works, but it costs far more than
-the user asked for:
+内置 profile 没有这样的文件，于是 Agents 面板把它的开关连同整个表单一起渲染成禁用，唯一的关闭办法是写一个同名文件去遮盖它（#874）。这办法能用，但代价远大于用户的要求：
 
-- the override is a **full copy** of the built-in's system prompt, frozen at the
-  version it was copied from, so later improvements to that prompt never reach
-  the user, and nothing in the file says it was ever a copy;
-- the panel's `Duplicate` button renames (`explore` → `explore-copy`), so it
-  does not produce an override at all — the user has to know to rename it back;
-- "I want one fewer agent in the list" ends as a file on disk that another
-  runtime reading the same directory (pi-subagents) now also sees.
+- 遮盖文件是内置系统提示词的**完整副本**，冻结在复制时的版本，之后对提示词的改进永远到不了用户手里，文件里也没有任何地方说明它曾是副本；
+- 面板的 `Duplicate` 按钮会改名（`explore` → `explore-copy`），因此它根本不产生遮盖 —— 用户必须自己知道要改回原名；
+- 「想少一个 agent」最后变成磁盘上的一个文件，连正在读同一目录的另一个运行时（pi-subagents）也会看到它。
 
-## Decision
+## 决策
 
-**The off state of a built-in is a name in
-`~/.pi/agent/agents/settings.json`**, the file that already holds
-`builtInEnabled` and `maxConcurrent`:
+**内置 profile 的关闭状态是 `~/.pi/agent/agents/settings.json` 里的一个名字**，也就是已经存放 `builtInEnabled` 与 `maxConcurrent` 的那个文件：
 
 ```json
 { "version": 1, "builtInEnabled": true, "disabledBuiltIns": ["explore"] }
 ```
 
-- `builtInProfiles()` in `lib/subagents.ts` stamps `enabled` onto the constants
-  from that list; both `listSubagentProfiles` and `listSubagentProfileSources`
-  go through it, so the panel, the `Agent` tool description, and the spawn guard
-  in `resolveSubagentProfile` all agree without a second code path.
-- **Every write is a minimal edit of the stored list**, like the `enabledModels`
-  toggles of ADR 0004. Names this call did not touch keep their position and
-  their spelling, including a name no built-in claims — that usually means the
-  file was written by a newer build, and dropping it would silently re-enable an
-  agent on the next launch of that build. The server stores the built-in's own
-  spelling and matches case-insensitively, the way profile names are compared
-  everywhere else.
-- **Reading the list fails open**, unlike `isBuiltInSubagentsEnabled`, which
-  fails closed. A damaged settings file must not make the built-in profiles
-  disappear from the panel, and the feature switch in the same file has already
-  failed closed by then, so nothing can be dispatched regardless.
-- `PATCH /api/subagents/profiles` accepts `scope: "builtin"` and routes it to
-  that setting; `PUT` and `DELETE` still refuse the scope, because there is no
-  file to write or remove. The route answers with the built-in profile carrying
-  its new `enabled`, so the panel updates the row it already has.
-- **A same-name file still replaces the built-in outright, its own `enabled`
-  included.** `disabledBuiltIns` describes the built-in, not the name: an
-  override is a profile in its own right and is switched off through its own
-  frontmatter.
+- `lib/subagents.ts` 里的 `builtInProfiles()` 根据该列表给常量打上 `enabled`；`listSubagentProfiles` 与 `listSubagentProfileSources` 都经过它，因此面板、`Agent` 工具描述与 `resolveSubagentProfile` 里的启动守卫无需第二条代码路径就能保持一致。
+- **每次写入都是对所存列表的最小编辑**，与 ADR 0004 的 `enabledModels` 开关一样。本次调用没碰过的名字保持原有位置与拼写，包括没有任何内置 profile 认领的名字 —— 那通常意味着文件由更新的版本写入，丢
+  掉它会在那个版本下次启动时静默重新启用某个 agent。服务端保存内置自己的拼写，并以不区分大小写的方式匹配，与其它地方比较 profile 名称的方式一致。
+- **读取该列表时失败开放**，与 `isBuiltInSubagentsEnabled` 的失败关闭相反。设置文件损坏不应让内置 profile 从面板消失；而同一文件里的功能开关此时已经失败关闭，因此任何东西都无法被派发。
+- `PATCH /api/subagents/profiles` 接受 `scope: "builtin"` 并把它路由到该设置；`PUT` 与 `DELETE` 仍然拒绝该 scope，因为没有文件可写或可删。路由返回带新 `enabled` 的内置 profile，面板据此更新它已有的那一行。
+- **同名文件依然整体替换内置 profile，包括它自己的 `enabled`。**`disabledBuiltIns` 描述的是内置本身，而不是这个名字：遮盖文件本身就是一个独立 profile，通过它自己的 frontmatter 关闭。
 
-**A built-in remains deliberately uneditable in place.** Only the switch gained
-somewhere to write; the name, prompt, tools and model of a built-in are changed
-by saving a same-name profile that shadows it, which is the supported path and
-not a workaround for a missing feature. An editable form would have to persist
-the result as a full copy of the profile, frozen at the version it was copied
-from — the cost this decision exists to avoid — so the switch is the only
-control a built-in gets.
+**内置 profile 依旧刻意不可就地编辑。**这次只给开关找了个写入位置；内置的名称、提示词、工具与模型，要通过保存同名 profile 去遮盖来改变 —— 那是受支持的路径，不是缺少功能的变通。可编辑表单必须把结果持久化成 profile 的完整副本，冻结在复制时的版本，而这正是本决策要避免的代价，所以开关是内置唯一拥有的控件。
 
-## Consequences
+## 影响
 
-- Disabling a built-in leaves no `.md` file, so pi-subagents and any other
-  runtime reading those directories are unaffected, and the built-in's prompt
-  keeps tracking the version Pi Web ships.
-- A running session keeps the `Agent` tool description it was created with, so a
-  disabled built-in is still advertised there until the session reloads. It
-  cannot be started: `resolveSubagentProfile` re-reads the setting and rejects
-  the call, exactly as it does for a file profile switched off mid-session, so
-  the panel does not ask for a reload for this switch the way `builtInEnabled`
-  does.
-- `readSubagentSettings()` now reports `disabledBuiltIns`. `maxConcurrent`
-  remains non-enumerable on that object; the new field does not.
+- 关闭一个内置不会留下 `.md` 文件，因此 pi-subagents 以及任何读取那些目录的运行时都不受影响，内置的提示词也会继续跟随 Pi Web 所发布的版本。
+- 运行中的会话保留创建时的 `Agent` 工具描述，因此被关闭的内置在那里仍会被列出，直到会话重载。但它无法启动：`resolveSubagentProfile` 会重新读取设置并拒绝调用，与文件 profile 在会话中途被关闭时的行为完全一致；因此这个开关不像 `builtInEnabled` 那样要求重载。
+- `readSubagentSettings()` 现在会报告 `disabledBuiltIns`。`maxConcurrent` 在该对象上仍不可枚举；新字段不影响这一点。

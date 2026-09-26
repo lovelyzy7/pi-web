@@ -73,7 +73,9 @@ if (!loopbackHostnames.has(hostname)) {
     );
   } else {
     console.warn(
-      `Warning: pi-web is listening on ${hostname} without authentication. Only use this on a trusted network.`,
+      `Warning: pi-web is listening on ${hostname}; authentication comes from the account in `
+      + "~/.pi/agent/pi-web (first run: /init with the setup code printed below). "
+      + "Password authentication does not encrypt the connection, so use HTTPS or a trusted VPN.",
     );
   }
 }

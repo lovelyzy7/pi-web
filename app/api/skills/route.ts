@@ -6,6 +6,8 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { loadSkillsWithInstallInfo } from "@/lib/skills-service";
 import { setDisableModelInvocation } from "@/lib/skill-frontmatter";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { projectCwdNotice, projectCwdRefusalStatus, resolveProjectCwd } from "@/lib/project-cwd";
+import { getAgentDir as agentDirOf } from "@earendil-works/pi-coding-agent";
 
 export const dynamic = "force-dynamic";
 
@@ -14,18 +16,33 @@ export const dynamic = "force-dynamic";
 // skill paths, package skills, and .agents/skills directories are all included.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const cwd = searchParams.get("cwd");
-  if (!cwd) return NextResponse.json({ error: "cwd required" }, { status: 400 });
+  const requested = searchParams.get("cwd");
 
   try {
-    const allowedRoots = await getAllowedFileRoots();
-    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    // The global scope (agent dir, installed packages) is listed even when the
+    // selected project is not on this machine — a container started with the
+    // host's sessions knows paths the image never had, and refusing the whole
+    // request hid every global skill behind "Access denied".
+    const scope = await resolveProjectCwd(requested, { allowedRoots: await getAllowedFileRoots() });
+    const refusal = projectCwdRefusalStatus(scope.status);
+    if (refusal) return NextResponse.json({ error: "Access denied" }, { status: refusal });
+    if (!requested && scope.status === "none") {
+      return NextResponse.json({ error: "cwd required" }, { status: 400 });
     }
-    return NextResponse.json(await loadSkillsWithInstallInfo(cwd));
+
+    const skills = await loadSkillsWithInstallInfo(scope.cwd ?? globalSkillScope());
+    return NextResponse.json({ ...skills, cwdNotice: projectCwdNotice(scope) ?? undefined });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
+}
+
+/**
+ * Where the loader looks when there is no project: the agent directory itself,
+ * which is what makes package and global skills visible.
+ */
+function globalSkillScope(): string {
+  return agentDirOf();
 }
 
 // PATCH /api/skills — toggle disable-model-invocation on a SKILL.md file

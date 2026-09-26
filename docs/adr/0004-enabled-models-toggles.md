@@ -1,161 +1,54 @@
-# 0004 — Model switches edit `enabledModels` with minimal pattern edits
+# 0004 — 模型开关对 `enabledModels` 做最小化的模式编辑
 
-## Status
+## 状态
 
-Accepted.
+已接受。
 
-## Context
+## 背景
 
-pi narrows the model selector with the global `enabledModels` setting, a
-whitelist of `--models` patterns: minimatch globs against `provider/modelId`,
-fuzzy matching for non-glob patterns, and an optional `:thinkingLevel` suffix.
-pi-web already *read* it (`lib/model-scope.ts`) but offered no way to change it,
-so a user had to drop to the TUI's `/scoped-models` or hand-edit
-`~/.pi/agent/settings.json`.
+pi 用全局设置 `enabledModels` 收窄模型选择器，它是 `--models` 模式的白名单：对 `provider/modelId` 做 minimatch 通配、对非通配模式做模糊匹配，并可带 `:thinkingLevel` 后缀。pi-web 早就**读**它（`lib/model-scope.ts`），却没有任何修改入口，用户只能退回 TUI 的 `/scoped-models` 或手改 `~/.pi/agent/settings.json`。
 
-`/scoped-models` keeps an in-memory `string[] | null` (`null` = everything
-enabled) and, on Ctrl+S, writes back **the fully expanded list of model ids it
-can currently see**, or removes the key when everything is enabled.
+`/scoped-models` 维护一个内存里的 `string[] | null`（`null` 表示全部启用），Ctrl+S 时把**它当前能看到的模型 id 完整展开**写回去，或者在全启用时删掉这个键。
 
-Two properties of that approach make it wrong for pi-web:
+这种做法有两个性质让它不适合 pi-web：
 
-1. `ModelRuntime.getAvailable()` only returns models of providers with
-   configured auth. Rewriting the whole list while the user is signed out of a
-   provider silently deletes every entry they had for it.
-2. It flattens hand-written globs (`anthropic/*` becomes dozens of ids) and
-   drops `:level` pins, because the id list cannot carry them.
+1. `ModelRuntime.getAvailable()` 只返回已配置认证的提供方的模型。用户还没登录某提供方时整体重写，会静默删掉他在该提供方下的所有条目。
+2. 它会把手写的通配（`anthropic/*` 变成几十个 id）摊平，并丢掉 `:level` 固定，因为 id 列表带不了这些信息。
 
-A whitelist also has an awkward degenerate case: pi falls back to *all* models
-when the patterns resolve to nothing, so "disable everything" silently means
-"enable everything".
+白名单还有一个别扭的退化情形：**当模式解析不出任何东西时 pi 会回退到全部模型**，于是「全部禁用」悄悄等于「全部启用」。
 
-## Decision
+## 决策
 
-**Every toggle is a minimal edit of the existing pattern list**
-(`lib/enabled-models.ts`, pure; `lib/enabled-models-runtime.ts`, SDK adapter):
+**每一次开关都是对现有模式列表的最小编辑**（`lib/enabled-models.ts` 为纯逻辑，`lib/enabled-models-runtime.ts` 为 SDK 适配层）：
 
-- A pattern matching no available model is never touched. "Available" means the
-  model's provider passed `checkAuth()` — a credential in `auth.json`, a
-  runtime key, a models.json `apiKey`, or an environment variable — so an entry
-  can stop matching because that credential is gone, because the model was
-  renamed or deleted, or because it was written on another machine. None of
-  those is a reason to drop it.
-- Switching a model off expands **only** the patterns that cover it, in place,
-  into explicit `provider/modelId` entries that keep the original `:level`
-  suffix; a pattern that matched only that model is dropped.
-- Switching a model on appends `provider/modelId` at the end.
-- **Every write normalizes fully enabled providers**, not just the edited one:
-  two or more entries covering all of a provider's models collapse into its
-  glob, at the first slot they occupied. pi refreshes provider catalogs from the
-  network into `models-store.json`, so an enumerated list rots — deepseek
-  renamed `deepseek-v4-flash` to `deepseek-flash`, leaving dead entries behind
-  while the new model stayed off, although the user had asked for the whole
-  provider. A glob heals itself. Skipped when a pin is involved (a glob cannot
-  carry one), when a wider pattern already covers the provider, and for a lone
-  exact reference, which is a deliberate pick rather than an enumeration.
-- The first edit against an unscoped setting materializes one provider glob per
-  provider instead of enumerating the catalog, so models added later stay
-  enabled.
-- **A provider glob is verified, never assumed.** pi matches with minimatch,
-  whose `*` does not cross `/`, so `commandcode/*` matches `commandcode/gpt-5.5`
-  but not `commandcode/sakana/fugu-ultra`. `resolveProviderGlobs()` resolves
-  `provider/*`, then `provider/**`, and keeps the first whose match set is
-  exactly that provider's models; a provider neither covers is written model by
-  model. Assuming the glob made "Enable all" store `commandcode/*` and report
-  15 of 71 models enabled, because the collapse replaced the 56 explicit entries
-  it had just added.
-- The key is removed once nothing is narrowed any more, but only when that
-  discards neither a stale pattern nor a pin.
-- `prune` is the one operation that deletes unmatched entries. Every other one
-  preserves them because an entry usually goes unmatched for a reversible
-  reason; a provider that renamed its models is not reversible, so the panel
-  offers this explicitly instead of making the user clear the whole scope.
-- `resync` runs after a models.json save, because a pattern's meaning depends
-  on the catalog that just moved. It rewrites renamed models and providers, cuts
-  back entries whose provider prefix no longer scopes them, and re-asserts the
-  providers the panel saw fully enabled before the save. pi matches patterns
-  against the bare `modelId` too, so `stepfun/*` also matches `commandcode`'s
-  model `stepfun/Step-5-Preview`: renaming a provider to `stepfun` turned its
-  glob into a cross-provider one, silently enabling three `commandcode` models,
-  and switching stepfun off then wrote them out. Renaming a *model* to an id
-  with a slash is the mirror image — `provider/*` stops covering it, so a fully
-  enabled provider quietly loses a model. A verified glob is only verified for
-  the catalog it was written against.
-- A rename made in the panel is a known move, so its entry travels instead of
-  being preserved as a mismatch: renaming the one enabled model used to leave
-  a dead entry, and with the list then resolving to nothing, pi enabled every
-  model. Model references are rewritten before provider ids, since they still
-  spell the provider the settings file knows. The panel mirrors the draft's
-  array moves to tell a rename from an add or a delete rather than guessing
-  from a diff.
-- Repair is confined to `resync`. An ordinary toggle stays a minimal edit and
-  never rewrites an entry the user did not touch, even one that over-matches by
-  hand.
-- Entry order is preserved: it is pi's model cycling order and the fallback for
-  the initial model of a new session.
+- **匹配不到任何可用模型的模式永不改动。**「可用」指该模型的提供方通过了 `checkAuth()` —— `auth.json` 里的凭据、运行期密钥、models.json 的 `apiKey`、或环境变量。一个条目失配的原因可能是凭据不在了、模型被改名或删除、或者它是在另一台机器上写的；这些都不是丢弃它的理由。
+- **关闭某个模型**时，只把覆盖它的那些模式就地展开为显式的 `provider/modelId` 条目，并保留原有的 `:level` 后缀；只匹配该模型的模式则被移除。
+- **启用某个模型**时在末尾追加 `provider/modelId`。
+- **每次写入都会对整个列表做「完全启用的提供方」归一化**，而不只处理被编辑的那个：覆盖某提供方全部模型的两条以上条目会折叠成它的通配，位置取它们占据的第一个槽位。pi 会从网络把提供方目录刷新进 `models-store.json`，所以枚举列表会腐坏 —— deepseek 把 `deepseek-v4-flash` 改名为 `deepseek-flash` 后，旧条目变成死条目、新模型却仍是关闭的，而用户当初要求的是整个提供方。通配能自愈。以下情况跳过归一化：涉及固定（通配带不了 `:level`）、已有更宽的模式覆盖该提供方、以及只有一条精确引用（那是刻意的挑选，不是枚举）。
+- 对**未收窄**的设置做第一次编辑时，为每个提供方物化一个通配，而不是枚举目录，这样之后新增的模型仍保持启用。
+- **提供方通配必须验证，不能假定。** pi 用 minimatch 匹配，其 `*` 不跨 `/`，因此 `commandcode/*` 匹配 `commandcode/gpt-5.5` 却不匹配 `commandcode/sakana/fugu-ultra`。`resolveProviderGlobs()` 先解析 `provider/*`，再解析 `provider/**`，取第一个匹配集恰好等于该提供方全部模型的；两者都覆盖不了的提供方按模型逐个写出。假定通配可用曾让「全部启用」写入 `commandcode/*` 并显示为 71 个模型里启用了 15 个，因为折叠替换掉了它刚添加的 56 条显式条目。
+- 当列表不再收窄任何东西时删除该键，但前提是这样不会丢掉失配模式或固定。
+- **`prune` 是唯一会删除失配条目的操作。**其他操作都保留它们，因为失配通常是可逆原因造成的；提供方改名则不可逆，所以面板显式提供这个操作，而不是让用户清空整个范围。
+- **`resync` 在保存 models.json 之后运行**，因为模式的含义依赖刚刚变化的目录。它会改写被改名的模型与提供方、裁掉提供方前缀已不再限定它们的条目、并重新声明保存前面板看到处于完全启用状态的提供方。pi 也会把模式与裸 `modelId` 匹配，所以 `stepfun/*` 还能匹配 `commandcode` 的模型 `stepfun/Step-5-Preview`：把提供方改名为 `stepfun` 会让该通配变成跨提供方的，悄悄启用三个 `commandcode` 模型，之后再关掉 stepfun 就把它们写了进去。把**模型**改名为带斜杠的 id 是镜像问题 —— `provider/*` 不再覆盖它，于是「完全启用」的提供方悄悄丢掉一个模型。验证过的通配只对写它时的那份目录有效。
+- 在面板里做的改名是一次**已知的移动**，所以条目随之前移，而不是作为失配被保留：过去把唯一启用的模型改名会留下死条目，列表随之解析不出东西，pi 于是启用了所有模型。模型引用先于提供方 id 改写，因为它们拼写出的仍是设置文件认识的那个提供方。面板镜像草稿数组的移动来判断「改名」与「新增/删除」，而不是从差异里猜。
+- **修复只发生在 `resync` 里。**普通开关保持最小编辑，绝不改写用户没碰过的条目，即使它手工写成了过宽的匹配。
+- **条目顺序被保留**：那是 pi 的模型循环顺序，也是新会话初始模型的回退依据。
 
-**The last enabled model cannot be switched off.** The server answers `409
-{ reason: "last-model" }` and the UI locks that switch, because an empty scope
-would read as no scope at all.
+**最后一个启用的模型不能被关闭。**服务端返回 `409 { reason: "last-model" }`，界面锁定该开关 —— 空范围会被读成「没有范围」。
 
-**The browser never composes patterns.** `/api/models/enabled` takes intents
-(`{op:"models"|"provider"|"clear"}`) and returns the resolved view. Pattern
-semantics exist only in the SDK resolver; duplicating them in client code is the
-bug `lib/model-scope.ts` already warns about (#307).
+**浏览器端从不拼装模式。**`/api/models/enabled` 接收意图（`{op:"models"|"provider"|"clear"}`）并返回解析后的视图。模式的语义只存在于 SDK 解析器里；在客户端代码里重复实现它正是 `lib/model-scope.ts` 已经警告过的错误（#307）。
 
-**Built-in providers get per-model switches, custom providers a single
-switch.** "Built-in" means pi's own providers plus anything an extension
-registered — both own their model lists, so `enabledModels` is the only way to
-hide one of their models. A models.json provider can simply have the model
-deleted, so it is switched as a whole.
+**内置提供方给出逐模型开关，自定义提供方给一个整体开关。**「内置」指 pi 自带的提供方以及扩展注册的提供方 —— 它们自己拥有模型列表，因此 `enabledModels` 是隐藏其中某个模型的唯一途径；而 models.json 的提供方可以直接删除模型，所以按整体开关。
 
-**Provider-level control is two buttons above a list, and one switch without
-one.** With per-model rows underneath, a header switch would have to answer
-"what happens when 12 of 40 are on"; `Enable all` / `Disable all` each have one
-meaning, the `12/40` readout carries the state, the filter turns them into
-`Enable shown` / `Disable shown`, and a partial state produced by
-`/scoped-models` is displayed honestly instead of being forced into a binary
-control. A models.json provider has no rows, so there both buttons only ever
-sent the same provider-wide write and one switch says it with half the
-controls. It lives in that provider's detail header next to Delete, where the
-panel's other provider-wide actions are, and the sidebar's `1/2` badge carries
-the count. That switch is on only when every model of the provider is on: a
-partial state then reads as off and one click completes it. Reading it as "any
-enabled" instead would leave partial unreachable in both directions whenever
-the last-enabled-model guard blocks the way down.
+**提供方级控制是列表上方的两个按钮，以及没有列表时的一个开关。**下面有逐模型行时，表头开关必须回答「40 个里有 12 个开着算怎样」；`Enable all` / `Disable all` 各自只有一个含义，`12/40` 读数承载状态，过滤后它们变成 `Enable shown` / `Disable shown`，而 `/scoped-models` 造成的部分状态被如实显示，而不是硬塞进二元控件。models.json 的提供方没有行，两个按钮永远只是同一个提供方级写入，一个开关就用一半的控件表达了它。它位于该提供方详情头部、Delete 旁边（面板其他提供方级操作所在处），侧边栏的 `1/2` 徽标承载计数。该开关只在提供方全部模型都启用时为开：部分状态于是读作关，一次点击即补全。若读作「有任意启用即可」，那么在「最后一个模型」守卫挡住向下路径时，部分状态两个方向都不可达。
 
-**Chrome is a tooltip.** Why a switch cannot move, and why a models.json
-provider is missing from the runtime, are one-line facts a user needs only when
-they hit them, so they ride on `title` instead of a paragraph under the
-control. The banner says
-`~/.pi/agent/settings.json · enabledModels 20/104`: naming the file and the key
-is shorter than a sentence about limiting the selector, and it answers the
-question the sentence did not — where the panel just wrote. The path comes from
-the route (`settingsPath`), because only the server knows the agent directory
-and whether a project file shadows it, and it is the part that truncates: the
-key and the counts never shrink.
+**说明文案放在 tooltip 里。**开关为什么不能移动、models.json 的提供方为什么不在运行期里，都是用户碰到时才需要的一行事实，所以它们挂在 `title` 上，而不是控件下方的一段话。横幅写的是 `~/.pi/agent/settings.json · enabledModels 20/104`：点出文件与键名，比一句「用来限制选择器」的话更短，而且回答了那句话没回答的问题 —— 面板刚写到了哪里。路径来自路由（`settingsPath`），因为只有服务端知道 agent 目录，以及是否被项目文件覆盖；它也是会被截断的那部分，键名与计数永不收缩。
 
-## Consequences
+## 影响
 
-- `/scoped-models` and the panel stay compatible both ways. The TUI reads the
-  globs pi-web writes; pi-web reads (and minimally edits) the expanded lists the
-  TUI writes. Pressing Ctrl+S in the TUI still flattens globs — that is the
-  TUI's behavior, not something pi-web can prevent.
-- Writes go to the global settings file only, like the TUI. When a project
-  `.pi/settings.json` sets `enabledModels` it replaces the global array
-  entirely, so the API reports `scope: "project"`, refuses writes, and the panel
-  renders the switches read-only with an explanation.
-- `enabledModels` is re-read per request through `SettingsManager`, which merges
-  just that field into the current file contents under pi's own lock, so a
-  concurrent TUI write of other settings is never clobbered. Panel edits are
-  serialized client-side because each one is a read-modify-write of the same
-  field.
-- Running sessions keep the `scopedModels` they were created with; new sessions
-  and the selector pick up the change after `invalidateModelsCache()` and the
-  refresh `AppShell` triggers when the settings panel closes.
-- pi-web never *creates* a `:thinkingLevel` pin. It preserves the ones it finds
-  and shows them as a read-only badge.
-- The switches live inside the models.json editor, so a save under them changes
-  what they describe. Saving re-reads the view, and the section takes a `custom`
-  flag so a models.json provider the runtime does not know yet — unsaved, empty,
-  or with a key that does not work — is not reported as a missing sign-in.
+- `/scoped-models` 与面板双向兼容。TUI 能读 pi-web 写的通配；pi-web 能读（并最小化编辑）TUI 写的展开列表。TUI 里按 Ctrl+S 仍然会摊平通配 —— 那是 TUI 的行为，pi-web 无法阻止。
+- 与 TUI 一样只写全局设置文件。当项目 `.pi/settings.json` 设置了 `enabledModels` 时，它会整体替换全局数组，因此 API 报告 `scope: "project"`、拒绝写入，面板以只读方式渲染开关并给出说明。
+- `enabledModels` 每次请求都通过 `SettingsManager` 重新读取，它只在 pi 自己的锁下把该字段合并进当前文件内容，因此并发的 TUI 写入（其它设置）不会被打断。面板的编辑在客户端串行化，因为每次都是同一字段的读-改-写。
+- 运行中的会话保持创建时的 `scopedModels`；新会话与选择器在 `invalidateModelsCache()` 以及设置面板关闭时 `AppShell` 触发的刷新之后才会看到变化。
+- pi-web 从不**创建** `:thinkingLevel` 固定，只保留它发现的固定并显示为只读徽标。
+- 开关位于 models.json 编辑器内部，所以在其下方保存会改变它们所描述的东西。保存会重新读取视图，该区块带一个 `custom` 标记，因此运行期还不认识的 models.json 提供方（未保存、为空、或密钥不可用）不会被报告成「需要登录」。

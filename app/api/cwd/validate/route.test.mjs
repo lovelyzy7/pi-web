@@ -13,6 +13,12 @@ const jiti = createJiti(import.meta.url, {
 const { POST } = await jiti.import("./route.ts");
 const { projectIdentityKey } = await jiti.import("../../../../lib/project-identity.ts");
 
+// Validating a cwd approves it, and approvals are persisted. Keep that out of
+// the operator's real pi-web.db.
+const { openDatabase, installDatabaseForTests } = await jiti.import("../../../../lib/db.ts");
+installDatabaseForTests(openDatabase(":memory:"));
+process.on("exit", () => installDatabaseForTests(null));
+
 test("validated cwd responses include server-resolved project identity", async (t) => {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "pi-web-cwd-validate-"));
   t.after(() => rm(cwd, { recursive: true, force: true }));

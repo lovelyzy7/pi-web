@@ -1,0 +1,77 @@
+# Everything the image builds itself, or that must not leak into it.
+#
+# The builder runs `npm ci` and `npm run build`, so a host copy of these
+# directories would be copied over the build and, on macOS or Windows, ship
+# binaries built for the wrong platform.
+node_modules
+.next
+out
+build
+
+# Next.js may append generated agent rules to AGENTS.md; keep the repository
+# state out of the image either way.
+.git
+.github
+.gitignore
+.vercel
+.env
+.env.*
+
+# Not needed to build or run the server. The Dockerfile copies .next,
+# node_modules, public, bin, package.json and next.config.ts — everything else
+# only slows the build down and can leak local state into the context.
+demo
+e2e
+test-results
+playwright-report
+blob-report
+coverage
+docs
+themes
+AGENTS.md
+CONTEXT.md
+README*.md
+
+# Large local artifacts. `docker save` output, npm pack tarballs and release
+# directories land next to the Dockerfile when an image is moved between
+# machines; none of them belongs in the build context.
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.iso
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.whl
+pi-web-releases
+
+# Runtime data: the SQLite database and pi session files live in the mounted
+# data directory, never in the image.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.jsonl
+
+# Editor/OS scratch that must not ship (the Windows ADS files appear when a
+# folder is copied through Windows, e.g. a theme downloaded into themes/).
+*:Zone.Identifier
+.idea
+.vscode
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.turbo
+.cache
+
+*.log
+npm-debug.log*
+*tsbuildinfo
+next-env.d.ts

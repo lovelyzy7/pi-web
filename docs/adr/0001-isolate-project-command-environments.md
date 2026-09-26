@@ -1,3 +1,23 @@
-# Isolate project command environments from the web host
+# 0001 — 项目命令环境与 Web 宿主隔离
 
-Pi Web sanitizes the environment of its built-in project shells instead of exposing the Next.js host runtime wholesale. The agent `bash` tool and direct user shell commands remove `PORT`, `NODE_ENV`, `NEXT_*`, and the `PI_WEB_PASSWORD` login secret while preserving the SDK-managed PATH, Pi session metadata, and all other inherited values; explicit variables set by a project command still take effect. The built-in terminal keeps the host environment but also omits `PI_WEB_PASSWORD`. Third-party extensions retain control of their own tools and subprocesses so existing overrides and remote execution integrations are not intercepted.
+## 状态
+
+已接受。
+
+## 背景
+
+Pi Web 运行在 Next.js 进程里，进程环境同时包含它自己的运行时变量（端口、`NODE_ENV`、`NEXT_*`）和它守护的登录密钥。而项目命令（Agent 的 `bash` 工具、用户在终端里敲的命令）由 pi 的 SDK 派生，两者共用同一份 `process.env`。整份暴露出去，既让项目命令有可能干扰宿主（改动 `PORT`、`NODE_ENV` 之类会被宿主读取的变量），也把一个与项目毫无关系的秘密交给了它们。
+
+## 决策
+
+**Pi Web 对它启动的项目命令环境做净化，而不是把宿主运行时整体交出去。**
+
+- Agent 的 `bash` 工具与用户直接执行的 shell 命令会移除 `PORT`、`NODE_ENV`、所有 `NEXT_*` 以及登录密钥 `PI_WEB_PASSWORD`。
+- 其他一切照旧继承：SDK 管理的 `PATH`、pi 的会话元数据、项目自身的环境变量；项目命令显式设置的变量依然生效。
+- 内置终端保留宿主环境（终端是操作者自己的调试入口），但同样剔除 `PI_WEB_PASSWORD`。
+- 第三方扩展对自己创建的工具与子进程仍有完全控制权，因此已有的变量覆盖、远程执行集成不会被这两处拦截。
+
+## 影响
+
+- 项目命令看不到宿主的 Web 运行时变量；依赖 `PORT` 或 `NODE_ENV` 判断行为的脚本需要显式设置它们。
+- 登录密钥不会随 Agent 的工具输出或终端回显泄漏出去。新增任何 `PI_WEB_*` 秘密时，必须同时更新这两处剔除名单，否则它会出现在 Agent 的环境里。

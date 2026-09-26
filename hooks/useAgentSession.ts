@@ -14,7 +14,10 @@ import type {
 } from "@/lib/types";
 import { isBlockingExtensionUiRequest } from "@/lib/browser-notifications";
 import { normalizeToolCalls } from "@/lib/normalize";
-import { isPromptRejectedError, sendAgentCommand } from "@/lib/agent-client";
+import { cwdMissingFromError, isPromptRejectedError, sendAgentCommand } from "@/lib/agent-client";
+import { translateMessage } from "@/lib/i18n/format";
+import { parseProviderError, providerErrorKindKey } from "@/lib/provider-error";
+import { getLocalePlugin, getSupportedLocales } from "@/lib/i18n/registry";
 import {
   deleteSessionViewSnapshot,
   getSessionViewSnapshot,
@@ -290,11 +293,51 @@ type ModelsResponse = {
   thinkingLevelPins?: Record<string, string>;
   modelError?: string;
   modelScopeWarnings?: string[];
+  /** Set when the requested project directory was replaced by a usable one. */
+  cwdNotice?: { requested: string; used: string; reason: "missing" | "not_a_directory" | "not_allowed" };
 };
 
 type SlashCommandsResponse = {
   commands?: SlashCommandInfo[];
 };
+
+/**
+ * A notice string for code paths that have no `t` in scope.
+ *
+ * The hook is used inside `I18nProvider`, which keeps `document.documentElement.lang`
+ * current; reading that avoids threading a translator through every callback and
+ * keeps the hook usable outside React in tests.
+ */
+/**
+ * A notice for a failed provider call.
+ *
+ * The same raw text arrives through several paths (a notice, a startup error, an
+ * assistant message), so the wording is produced from one parse: describe the
+ * class of failure in the interface language and keep the provider's own words.
+ */
+export function providerErrorNotice(message: string): string | null {
+  const parsed = parseProviderError(message);
+  if (!parsed) return null;
+  const localized = localizedNotice(providerErrorKindKey(parsed.kind), {
+    detail: parsed.message || parsed.code || "",
+    status: parsed.status === null ? "—" : String(parsed.status),
+  }, parsed.message || message);
+  return localized;
+}
+
+function localizedNotice(key: string, params: Record<string, string>, fallback: string): string {
+  if (typeof document === "undefined") return fallback;
+  const lang = document.documentElement.lang;
+  const locale = lang === "zh-CN" || lang === "zh-TW" ? lang : "en";
+  try {
+    const messages = Object.fromEntries(
+      getSupportedLocales().map((id) => [id, getLocalePlugin(id)?.messages ?? {}]),
+    );
+    return translateMessage(locale, key, messages, params);
+  } catch {
+    return fallback;
+  }
+}
 
 export function useAgentSession(opts: UseAgentSessionOptions) {
   const {
@@ -320,6 +363,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [modelNames, setModelNames] = useState<Record<string, string>>({});
   const [modelList, setModelList] = useState<ModelEntry[]>([]);
   const [modelError, setModelError] = useState<string | null>(null);
+  /**
+   * Set when `/api/models` answered with a different directory than the one the
+   * browser asked for: the selected project is not on this machine (a container
+   * without it mounted). `ChatInput` renders it as a warning above the composer,
+   * so the model list is usable instead of failing the whole request.
+   */
+  const [modelCwdNotice, setModelCwdNotice] = useState<
+    { requested: string; used: string; reason: "missing" | "not_a_directory" | "not_allowed" } | null
+  >(null);
   const [modelScopeWarnings, setModelScopeWarnings] = useState<string[]>([]);
   const [modelThinkingLevels, setModelThinkingLevels] = useState<Record<string, string[]>>({});
   const [modelThinkingLevelMaps, setModelThinkingLevelMaps] = useState<Record<string, Record<string, string | null>>>({});
@@ -1606,7 +1658,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       }
     } catch (e) {
       console.error("Failed to send message:", e);
-      const definitivelyRejected = !promptRequestStarted || isPromptRejectedError(e);
+      // A missing working directory is a definitive rejection too: waiting for a
+      // run that was never started would just hang on the settlement timeout.
+      const cwdMissing = cwdMissingFromError(e);
+      const definitivelyRejected = !promptRequestStarted || isPromptRejectedError(e) || cwdMissing;
       // A transport/proxy failure after dispatch is ambiguous: the server may
       // have accepted the prompt before the response was lost. Keep SSE alive
       // until server state confirms the run is idle.
@@ -1621,7 +1676,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           ? prev
           : [...prev.slice(0, optimisticIndex), ...prev.slice(optimisticIndex + 1)];
       });
-      addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
+      addNotice({
+        type: "error",
+        message: cwdMissing
+          ? localizedNotice("chat.cwdMissing", { path: cwdMissing.cwd }, e instanceof Error ? e.message : String(e))
+          : providerErrorNotice(e instanceof Error ? e.message : String(e))
+            ?? (e instanceof Error ? e.message : String(e)),
+      });
       restoreSubmission(message, images, composerDraftKey);
       optimisticUserMessageKeyRef.current = null;
       // Rejection only describes this submission. Another tab or an event we
@@ -1834,6 +1895,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
     setModelNames(d.models);
     setModelError(d.modelError ?? null);
+    setModelCwdNotice(d.cwdNotice ?? null);
     setModelScopeWarnings(d.modelScopeWarnings ?? []);
     setModelThinkingLevels(d.thinkingLevels ?? {});
     setModelThinkingLevelMaps(d.thinkingLevelMaps ?? {});
@@ -2433,7 +2495,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   return {
     // State
     data, loading, error, activeLeafId, messages, activeToolResults, entryIds, historyCursor, hasEarlierMessages, streamState,
-    agentRunning, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel,
+    agentRunning, modelNames, modelList, modelError, modelCwdNotice, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel,
     retryInfo, contextUsage, systemPrompt, forkingEntryId,
     isCompacting, compactError, compactResult, currentModel, displayModel, modelSwitching, sessionStats, autoCompactionEnabled,
     slashCommands, slashCommandsLoading, queuedMessages,

@@ -1,13 +1,13 @@
-# Release Checklist
+# 发布检查清单
 
-This repo publishes two artifacts for each release:
+本仓库每次发布两个产物：
 
-- npm package: `@agegr/pi-web`
-- GitHub Release: `agegr/pi-web`
+- npm 包：`@agegr/pi-web`
+- GitHub Release：`agegr/pi-web`
 
-Use this checklist from a clean `main` checkout.
+请在干净的 `main` 检出目录里按此清单执行。
 
-## 1. Preflight
+## 1. 发布前确认
 
 ```bash
 git status --short --branch
@@ -17,38 +17,38 @@ npm whoami
 node -e "const p=require('./package.json'); console.log(p.version)"
 ```
 
-Expected:
+预期：
 
-- `git status` is clean, or only contains changes you intentionally plan to release.
-- GitHub is authenticated as an account that can push and create releases.
-- npm is authenticated as an account that can publish `@agegr/pi-web`.
+- `git status` 干净，或只包含你确实打算发布的改动。
+- GitHub 已用有推送与创建 release 权限的账号登录。
+- npm 已用有 `@agegr/pi-web` 发布权限的账号登录。
 
-## 2. Publish to npm
+## 2. 发布到 npm
 
 ```bash
 npm run release
 ```
 
-The release script runs:
+发布脚本会执行：
 
 ```bash
 npm version patch --no-git-tag-version && npm run build && npm publish --access public
 ```
 
-Notes:
+说明：
 
-- This bumps `package.json` and `package-lock.json`.
-- It intentionally runs a production build. Do not run `next build` during normal development; release work is the exception.
-- If `npm view @agegr/pi-web version` briefly shows the previous version, check the exact version instead:
+- 它会同时更新 `package.json` 与 `package-lock.json`。
+- 它刻意执行生产构建。日常开发不要运行 `next build`，发布是例外。
+- 如果 `npm view @agegr/pi-web version` 短暂显示旧版本，请直接查确切版本：
 
 ```bash
 npm view @agegr/pi-web@<version> version --registry https://registry.npmjs.org/
 npm view @agegr/pi-web versions --json --registry https://registry.npmjs.org/
 ```
 
-## 3. Commit the Version Bump
+## 3. 提交版本号变更
 
-Replace `<version>` with the new package version, for example `0.7.5`.
+把 `<version>` 换成新的包版本，例如 `0.7.5`。
 
 ```bash
 git diff -- package.json package-lock.json
@@ -56,23 +56,23 @@ git add package.json package-lock.json
 git commit -m "Release v<version>"
 ```
 
-## 4. Tag and Push
+## 4. 打标签并推送
 
 ```bash
 git tag -a v<version> -m "v<version>"
 git push origin main --tags
 ```
 
-Confirm the tag does not already exist before creating it when unsure:
+不确定标签是否已存在时，先确认再创建：
 
 ```bash
 git ls-remote --tags origin v<version>
 gh release view v<version> --repo agegr/pi-web
 ```
 
-## 5. Generate Release Notes from Commits
+## 5. 从提交记录生成发布说明
 
-Use the previous release tag as the base.
+以上一次发布的标签为基准。
 
 ```bash
 git log --oneline --decorate v<previous>..v<version>
@@ -80,9 +80,9 @@ git log --format='%h%x09%s%n%b' v<previous>..v<version>
 git diff --stat v<previous>..v<version>
 ```
 
-Write the release notes from those commits, not from memory. Include both Chinese and English sections. Keep commit hashes next to each item when useful.
+发布说明要依据这些提交来写，而不是凭记忆。同时包含中文与英文两部分；必要时在每条后面附上提交哈希。
 
-Suggested structure:
+建议结构：
 
 ```markdown
 ## 中文
@@ -126,9 +126,9 @@ Prepared from commits in `v<previous>..v<version>`.
 - Published npm package `@agegr/pi-web@<version>`.
 ```
 
-## 6. Create or Update the GitHub Release
+## 6. 创建或更新 GitHub Release
 
-Create a new release:
+创建新的 release：
 
 ```bash
 gh release create v<version> \
@@ -138,7 +138,7 @@ gh release create v<version> \
   --notes-file release-notes.md
 ```
 
-If the release already exists and only the notes need updating:
+如果 release 已存在、只需更新说明：
 
 ```bash
 gh release edit v<version> \
@@ -146,7 +146,7 @@ gh release edit v<version> \
   --notes-file release-notes.md
 ```
 
-You can avoid a temporary file by passing notes through stdin:
+也可以用 stdin 传入说明，避免临时文件：
 
 ```bash
 gh release edit v<version> --repo agegr/pi-web --notes-file - <<'EOF'
@@ -160,7 +160,7 @@ gh release edit v<version> --repo agegr/pi-web --notes-file - <<'EOF'
 EOF
 ```
 
-## 7. Final Verification
+## 7. 最终核对
 
 ```bash
 gh release view v<version> --repo agegr/pi-web
@@ -169,9 +169,9 @@ git status --short --branch
 git log --oneline --decorate -3
 ```
 
-Expected:
+预期：
 
-- GitHub Release exists and is not a draft unless intentionally published as one.
-- npm exact version resolves.
-- `main` is aligned with `origin/main`.
-- `HEAD` points at the release commit and `v<version>` tag.
+- GitHub Release 存在；除非有意发布为草稿，否则不是 draft。
+- npm 上的确切版本可以查询到。
+- `main` 与 `origin/main` 一致。
+- `HEAD` 指向发布提交，且存在 `v<version>` 标签。

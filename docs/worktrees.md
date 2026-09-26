@@ -1,87 +1,87 @@
-# Worktrees in Pi Web
+# Pi Web 中的 worktree
 
-Pi Web can show all Git worktrees for one project in the sidebar. Use this when you want to keep separate checkouts for different branches, while keeping the project's sessions grouped together.
+Pi Web 可以在侧边栏里显示同一个项目的所有 Git worktree。当你想为不同分支保留各自独立的检出目录，同时又希望该项目的会话归组在一起时，就用这个功能。
 
-## When the Worktree Control Appears
+## worktree 控件何时出现
 
-The worktree switcher appears below the project picker when the selected directory is a Git repository root.
+当所选目录是一个 Git 仓库的**根目录**时，worktree 切换器会出现在项目选择器下方。
 
-It is hidden when:
+以下情况会隐藏：
 
-- The selected directory is not a Git repository.
-- The selected directory is inside a repository, but not the repository root.
-- Git cannot read the repository's worktree list.
+- 所选目录不是 Git 仓库。
+- 所选目录在某个仓库内部，但不是仓库根目录。
+- Git 无法读取该仓库的 worktree 列表。
 
-If you are inside a repo subdirectory, open the repository root from the project picker to manage worktrees.
+如果你当前在仓库的子目录里，请从项目选择器打开仓库根目录来管理 worktree。
 
-## Switching Worktrees
+## 切换 worktree
 
-Use the worktree switcher to choose which checkout Pi Web should use for new work in that project.
+用 worktree 切换器选择 Pi Web 在该项目中进行新工作时使用哪个检出目录。
 
-Switching worktrees affects:
+切换会影响：
 
-- New sessions started from the sidebar.
-- The file Explorer.
-- File mentions inserted from the Explorer.
+- 从侧边栏新建的会话。
+- 文件资源管理器。
+- 从资源管理器插入的文件引用。
 
-Existing sessions stay grouped under the same project. Opening an existing session moves the effective working directory back to that session's checkout.
+已有会话仍然归组在同一个项目下。打开一个已有会话会把生效的工作目录切回该会话自己的检出目录。
 
-## Creating a Worktree
+## 创建 worktree
 
-Choose `New worktree...` from the worktree menu and enter a branch name.
+在 worktree 菜单里选择 `New worktree...` 并输入分支名。
 
-Pi Web creates the checkout at:
+Pi Web 会在下面位置创建检出目录：
 
 ```text
-<repo>-worktrees/<branch>
+<仓库>-worktrees/<分支>
 ```
 
-For example, if the main checkout is:
+例如主检出目录为：
 
 ```text
 /Users/alex/Documents/Workspace/pi-web
 ```
 
-and you create branch `codex/worktree-help`, the worktree is created under:
+而你创建分支 `codex/worktree-help` 时，worktree 会创建在：
 
 ```text
 /Users/alex/Documents/Workspace/pi-web-worktrees/codex-worktree-help
 ```
 
-If the branch already exists, Pi Web adds a worktree for that branch. If it does not exist, Pi Web creates the branch from the current `HEAD`.
+如果分支已存在，Pi Web 会为该分支添加一个 worktree；如果不存在，则从当前 `HEAD` 创建该分支。
 
-## Removing a Worktree
+## 删除 worktree
 
-Use the remove button next to a non-main worktree to remove that checkout.
+非主 worktree 旁边的删除按钮可以移除该检出目录。
 
-Removing a worktree does not delete:
+删除 worktree **不会**删除：
 
-- The Git branch.
-- Pi Web session history.
-- The main checkout.
+- Git 分支。
+- Pi Web 的会话历史。
+- 主检出目录。
 
-If the worktree has uncommitted or untracked files, Git refuses the removal. Pi Web then offers a force remove action. Force removal discards the uncommitted files in that checkout, so use it only when you no longer need those changes.
+如果该 worktree 有未提交或未跟踪的文件，Git 会拒绝删除。此时 Pi Web 会提供强制删除。强制删除会丢弃该检出目录里的未提交文件，因此只在你确实不再需要这些改动时使用。
 
-## Sessions and Worktrees
+## 会话与 worktree
 
-Pi Web groups sessions by project root, so sessions from the main checkout and linked worktrees appear together.
+Pi Web 按项目根目录归组会话，因此主检出与关联 worktree 的会话会一起显示。
 
-Each session still remembers the working directory it was created with. That means:
+每个会话仍然记得它创建时的工作目录，也就是说：
 
-- A session started in a worktree continues to use that worktree path.
-- A session started in the main checkout continues to use the main checkout.
-- If a worktree has been removed, old sessions from it stay visible under the project so you can still find the history.
+- 在某个 worktree 里开始的会话继续使用该 worktree 路径。
+- 在主检出里开始的会话继续使用主检出。
+- 如果某个 worktree 已被删除，它过去的会话仍会显示在该项目下，方便你找回历史。
 
-## Troubleshooting
+## 常见问题
 
-**I do not see the worktree switcher.**
-Select a Git repository root. Non-Git directories and repo subdirectories show a small hint instead of the switcher.
+**看不到 worktree 切换器。**
+请选择 Git 仓库根目录。非 Git 目录与仓库子目录只会显示一条小提示，而不是切换器。
 
-**A branch cannot be added as a worktree.**
-Git allows a branch to be checked out in only one worktree at a time. Switch to the existing worktree for that branch, or remove it first.
+**某个分支无法添加为 worktree。**
+Git 允许一个分支同时只在一个 worktree 中被检出。请切换到该分支已有的 worktree，或先删除它。
 
-**A removed worktree still shows up in Git.**
-Git can keep prunable worktree records after a checkout disappears. Pi Web filters those out of the switcher.
+**已删除的 worktree 仍出现在 Git 里。**
+检出目录消失后，Git 可能保留可清理的 worktree 记录；Pi Web 会在切换器中过滤掉它们。
 
-**The Explorer shows a different branch than the open chat.**
-The Explorer follows the selected worktree. The chat follows the opened session. Click the session again to move the sidebar back to that session's checkout.
+**资源管理器显示的分支与当前聊天不一致。**
+资源管理器跟随所选 worktree，而聊天跟随已打开的会话。再次点击该会话，即可让侧边栏回到该会话的检出目录。
