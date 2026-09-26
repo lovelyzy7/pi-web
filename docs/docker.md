@@ -8,15 +8,52 @@
 
 镜像里包含了 `.next` 构建产物和运行依赖，所以构建必须在有源码的地方做。
 
+### 1.0 两个版本：国内版与海外版
+
+仓库里有**两个 Dockerfile，除镜像源以外完全一致**（`lib/dockerfile-variants.test.mjs` 会检查它们没有跑偏）：
+
+| 文件 | 适用 | apt | Node | npm | pip |
+| --- | --- | --- | --- | --- | --- |
+| `Dockerfile`（默认） | 国内 VPS | `mirrors.aliyun.com` | `npmmirror.com/mirrors/node` | `registry.npmmirror.com` | 清华 PyPI |
+| `Dockerfile.global` | 海外 VPS | 官方 `archive.ubuntu.com` | `nodejs.org/dist` | `registry.npmjs.org` | `pypi.org/simple` |
+
+```bash
+docker build -t pi-web:latest .                      # 国内版
+docker build -f Dockerfile.global -t pi-web:latest . # 海外版
+```
+
+四个镜像都可以用 `--build-arg` 单独覆盖，**传空值表示用官方源**：
+
+```bash
+docker build --build-arg APT_MIRROR= -t pi-web:latest .                    # 只关掉 apt 镜像
+docker build --build-arg NPM_REGISTRY=https://registry.npmjs.org -t pi-web:latest .
+docker build --build-arg NODE_MIRROR=https://nodejs.org/dist -t pi-web:latest .
+```
+
+腾讯云内网可以用 `--build-arg APT_MIRROR=mirrors.tencentyun.com`，阿里云 ECS 内网用 `mirrors.cloud.aliyuncs.com`（都免费、走内网）。
+
+### 1.0.1 自动检测 VPS 架构
+
+构建时按镜像平台自动选择 Node 包，同一份 Dockerfile 在 x86_64 与 ARM 上都可用：
+
+| `dpkg --print-architecture` | Node 包 |
+| --- | --- |
+| `amd64` | `linux-x64` |
+| `arm64` | `linux-arm64` |
+| `armhf` | `linux-armv7l` |
+
+其他架构会**明确报错**并列出支持项。构建日志里会打印实际选中的组合，例如 `[pi-web] architecture: amd64 -> node-v22.19.0-linux-x64`，另有 `--build-arg NODE_ARCH=<x64|arm64|armv7l>` 供特殊平台手工覆盖。基础镜像 `ubuntu:24.04` 本身是多架构的，`docker build` 会拉取与宿主机匹配的那一份；跨架构构建（例如在 x86 上出 arm64 镜像）用 `docker buildx build --platform linux/arm64`。
+
 ### 1.1 在 VPS 上直接构建（推荐）
 
 ```bash
-git clone https://github.com/agegr/pi-web.git
+git clone https://github.com/lovelyzy7/pi-web.git
 cd pi-web
-docker build -t pi-web:latest .
+docker build -t pi-web:latest .                      # 国内 VPS（默认走国内源）
+docker build -f Dockerfile.global -t pi-web:latest . # 海外 VPS（全官方源）
 ```
 
-国内网络下默认就会走国内源（apt 用阿里云、Node 用 npmmirror、npm 用 npmmirror、pip 用清华）。云厂商 VPS 建议换成内网源，免公网流量且更快：
+国内版默认就用国内源（apt 阿里云、Node npmmirror、npm npmmirror、pip 清华），见上面的 §1.0。云厂商 VPS 建议换成内网源，免公网流量且更快：
 
 ```bash
 # 腾讯云
@@ -33,7 +70,7 @@ Docker Hub 本身也要能拉 `ubuntu:24.04`：在 1Panel「容器 → 配置 �
 
 ```bash
 # 本地
-git clone https://github.com/agegr/pi-web.git && cd pi-web
+git clone https://github.com/lovelyzy7/pi-web.git && cd pi-web
 docker build -t pi-web:latest .
 docker save pi-web:latest | gzip > pi-web-latest.tar.gz
 scp pi-web-latest.tar.gz root@vps:/root/

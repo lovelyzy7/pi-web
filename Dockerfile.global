@@ -1,18 +1,18 @@
 # Pi Web in a full Ubuntu image, built from source.
 #
-# This is the **China mirror build** (apt / Node / npm / pip all point at
-# Chinese mirrors). On a VPS outside China use `Dockerfile.global`, which is the
-# same file with upstream sources — the two are kept identical otherwise (see
-# lib/dockerfile-variants.test.mjs).
+# This is the **global build**: apt, Node, npm and pip all use their upstream
+# sources, which is what a VPS outside China wants (the Chinese mirrors are
+# slower and occasionally incomplete from abroad). It is the same file as
+# `Dockerfile` with the four mirror defaults below changed — keep them identical
+# otherwise (`lib/dockerfile-variants.test.mjs` checks that).
 #
 # The target architecture is detected from the image platform (`amd64`, `arm64`,
 # `armhf`), so the same file builds on x86_64 and ARM VPS alike; the base image
 # and the Node tarball follow it.
 #
 # Build (command line, no registry required):
-#   docker build -t pi-web:latest .
-#   docker build -f Dockerfile.global -t pi-web:latest .   # 海外版
-#   docker build --build-arg APT_MIRROR= -t pi-web:latest . # 用官方 apt 源
+#   docker build -f Dockerfile.global -t pi-web:latest .
+#   docker build -f Dockerfile -t pi-web:latest .            # 国内版（默认 Dockerfile）
 # Install inside a 1Panel network (no published port; the panel's OpenResty
 # container proxies to http://pi-web:30141):
 #   docker run -d --name pi-web --restart unless-stopped \
@@ -32,14 +32,11 @@ ARG UBUNTU_IMAGE=ubuntu:24.04
 ARG NODE_VERSION=22.19.0
 # Mirror defaults. `Dockerfile.global` overrides exactly these four, so an empty
 # value must mean "keep the upstream source" everywhere below.
-ARG NODE_MIRROR=https://npmmirror.com/mirrors/node
-ARG NPM_REGISTRY=https://registry.npmmirror.com
-ARG PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
-# Mirrors per cloud: Tencent Cloud uses http://mirrors.tencentyun.com/ubuntu/,
-# Alibaba Cloud ECS uses http://mirrors.cloud.aliyuncs.com/ubuntu/ (both free,
-# internal traffic). The public mirror below works anywhere in China; empty
-# keeps the archive.ubuntu.com entries from the base image.
-ARG APT_MIRROR=mirrors.aliyun.com
+ARG NODE_MIRROR=https://nodejs.org/dist
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG PIP_INDEX=https://pypi.org/simple
+# Empty: keep the archive.ubuntu.com entries the base image ships.
+ARG APT_MIRROR=
 
 # ---------------------------------------------------------------------------
 # Builder: full toolchain, Chinese package mirrors, cache mounts so a rebuild

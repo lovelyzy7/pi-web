@@ -6,7 +6,7 @@
 
 **[在线演示 →](https://agegr.github.io/pi-web/)** 真实的 Pi Web 界面完全在浏览器里运行，带有示例会话、文件与模型。无需安装，回复是预置文本，不会调用任何模型。
 
-![Pi Web 显示一个包含结构化 Markdown、工具调用与项目导航的 pi 会话](https://raw.githubusercontent.com/agegr/pi-web/main/docs/screenshot2.png)
+![Pi Web 显示一个包含结构化 Markdown、工具调用与项目导航的 pi 会话](https://raw.githubusercontent.com/lovelyzy7/pi-web/main/docs/screenshot2.png)
 
 ## 功能
 
@@ -108,7 +108,12 @@ pi-web --hostname 0.0.0.0
 
 ### Docker 部署
 
-完整 Ubuntu 镜像、国内源、卷挂载规则与 1Panel 反向代理说明：[docs/docker.md](./docs/docker.md)。
+两个 Dockerfile：`Dockerfile`（国内源，默认）与 `Dockerfile.global`（海外版，全部走官方源），除镜像源外完全一致；构建时自动识别 VPS 架构（amd64 / arm64 / armhf）。完整 Ubuntu 镜像、卷挂载规则与 1Panel 反向代理说明：[docs/docker.md](./docs/docker.md)。
+
+```bash
+docker build -t pi-web:latest .                      # 国内 VPS
+docker build -f Dockerfile.global -t pi-web:latest . # 海外 VPS
+```
 
 **一条容易踩的坑**：项目目录必须按**同一绝对路径**、挂在**项目父目录**上（`-v /srv:/srv`），会话文件里存的是绝对工作目录 —— 换个路径挂（`-v /srv/app:/workspace/app`）等于没挂。没挂对时 Pi Web 不会伪装成正常：文件浏览器会说「目录不存在：<路径>」，技能/插件只显示全局范围，发消息会告诉你「会话的工作目录在服务端不存在」。三组实测对照见文档第 4 节。
 

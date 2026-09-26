@@ -6,7 +6,7 @@ import { THEME_OPTIONS } from "@/lib/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { THEME_SAFETY_COOKIE } from "@/lib/theme-safety";
 import { ThemeIcon } from "./ThemeIcon";
-import { ConfigButton, ConfigField } from "./SettingsUi";
+import { ConfigButton } from "./SettingsUi";
 
 /**
  * Theme selection: the built-in palettes plus third-party themes.
@@ -810,7 +810,7 @@ export function ThemeSettings({ cwd = null }: { cwd?: string | null }) {
                   </ConfigButton>
                 </>
               )}
-            <a className="market-link" href="https://github.com/agegr/pi-web/blob/main/docs/theme-development.md" target="_blank" rel="noopener noreferrer">
+            <a className="market-link" href="https://github.com/lovelyzy7/pi-web/blob/main/docs/theme-development.md" target="_blank" rel="noopener noreferrer">
               {t("theme.docs")}
             </a>
           </div>

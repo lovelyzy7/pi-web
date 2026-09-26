@@ -2,6 +2,14 @@ name: Demo
 
 # Builds the static Pi Web demo in demo/ and publishes it to GitHub Pages.
 # Pull requests that touch the demo only build it.
+#
+# Two one-time repository settings are needed, and both are off by default on a
+# fork — a workflow that only fails does not explain either of them:
+#   1. Settings → Actions → General → "Allow all actions" (on a fork GitHub
+#      disables workflows entirely until this is confirmed).
+#   2. Nothing for Pages: `configure-pages` with `enablement: true` turns the
+#      Pages site on with "GitHub Actions" as its source on the first run.
+# docs/release.md repeats this in prose.
 
 on:
   push:
@@ -9,11 +17,17 @@ on:
   pull_request:
     paths:
       - "demo/**"
+      - "package.json"
       - ".github/workflows/demo-pages.yml"
   workflow_dispatch:
 
+# `pages: write` + `id-token: write` are what the Pages deployment needs, and
+# `configure-pages` needs them as well — with only `contents: read` it fails with
+# "Resource not accessible by integration" before the build even starts.
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: demo-${{ github.ref }}
@@ -36,6 +50,10 @@ jobs:
       - id: pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
+        with:
+          # Creates the Pages site (source: GitHub Actions) when it does not
+          # exist yet, so a fresh fork publishes on its first run.
+          enablement: true
       - run: npm ci
       - run: npm run lint
       - run: npm run build
@@ -51,9 +69,6 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -1,5 +1,8 @@
 name: CI
 
+# Fork note: GitHub disables workflows on a fork until they are enabled once in
+# Settings → Actions → General. docs/release.md has the checklist.
+
 on:
   push:
     branches: [main]
@@ -23,7 +26,10 @@ jobs:
           node-version: 22.19.0
           cache: npm
       - run: npm ci
-      - run: npm run lint
+      # `--max-warnings 0`: the repo lints clean, and an unused import or a
+      # leftover debug statement is exactly the kind of warning that otherwise
+      # accumulates until nobody reads the output.
+      - run: npx eslint . --max-warnings 0
       - run: npx tsc --noEmit
       - run: npm test
 

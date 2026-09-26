@@ -4,7 +4,7 @@
   "name": "NieR:Automata",
   "version": "1.0.0",
   "author": "pi-web",
-  "homepage": "https://github.com/agegr/pi-web-theme-nier",
+  "homepage": "https://github.com/lovelyzy7/cf-server-monitor-theme-NieR",
   "license": "MIT",
   "base": "light",
   "piWeb": ">=0.9 <1.0",
@@ -14,14 +14,33 @@
     "zh-TW": "寄葉地堡終端：米白畫布、炭黑邊框、等寬資料字體，以及整套 NieR 游標。"
   },
   "variables": [
-    "--bg", "--bg-panel", "--bg-hover", "--bg-selected", "--border", "--bg-subtle",
-    "--text", "--text-muted", "--text-dim",
-    "--accent", "--accent-hover", "--accent-contrast",
-    "--user-bg", "--assistant-bg", "--tool-bg",
-    "--danger", "--success", "--warning", "--info",
-    "--terminal-bg", "--terminal-fg", "--terminal-cursor", "--qr-bg"
+    "--bg",
+    "--bg-panel",
+    "--bg-hover",
+    "--bg-selected",
+    "--border",
+    "--bg-subtle",
+    "--text",
+    "--text-muted",
+    "--text-dim",
+    "--accent",
+    "--accent-hover",
+    "--accent-contrast",
+    "--user-bg",
+    "--assistant-bg",
+    "--tool-bg",
+    "--danger",
+    "--success",
+    "--warning",
+    "--info",
+    "--terminal-bg",
+    "--terminal-fg",
+    "--terminal-cursor",
+    "--qr-bg"
   ],
-  "styles": ["theme.css"],
+  "styles": [
+    "theme.css"
+  ],
   "variants": {
     "light": "theme.light.css",
     "dark": "theme.dark.css"

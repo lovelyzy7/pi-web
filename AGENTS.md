@@ -325,6 +325,16 @@ pi 内置的模型列表在 SDK 构建时生成，而 pi-web 固定一个 SDK �
 - **`.dockerignore` 决定构建上下文**：只留 builder 需要的源码与配置；`demo`/`docs`/`themes`/`AGENTS.md`/README/大产物全部排除。实测上下文 6.3 MB（排除前 >50 MB）。**新增顶层目录时先想一遍要不要进上下文**，验证方法写在 `docs/docker.md` §1.3（只 `COPY` 的临时 Dockerfile 打印 `du -sh /ctx`）。
 - 子项目自带自己的忽略文件（`demo/.gitignore` 覆盖 `demo/node_modules`、`.next`、`out`、`public/demo-files`），根 `.gitignore` 的 `/node_modules` 是**锚定**写法，覆盖不到子目录。
 
+### 两个 Dockerfile 与架构检测
+- **`Dockerfile`（国内版，默认）与 `Dockerfile.global`（海外版）必须保持只有镜像默认值不同**：`lib/dockerfile-variants.test.mjs` 会把注释与 `ARG NODE_MIRROR / NPM_REGISTRY / PIP_INDEX / APT_MIRROR` 的默认值归一化后逐行比较，改了一个忘了另一个就会红。四个值都可以用 `--build-arg` 覆盖，**空值表示保留上游源**（所以 apt 的 `sed` 重写必须包在 `if [ -n "${mirror}" ]` 里 —— 否则海外版会把 `archive.ubuntu.com` 改写成没配置过的镜像）。
+- **架构自动检测**：`dpkg --print-architecture` → `amd64→x64`、`arm64→arm64`、`armhf→armv7l`，其它组合直接报错并列出 `NODE_ARCH` 覆盖用法；构建日志打印 `[pi-web] architecture: amd64 -> node-v22.19.0-linux-x64`。基础镜像是多架构的，`docker build` 自动取宿主机那一片；跨架构用 `docker buildx --platform`。**不要**在 Dockerfile 里写死 `linux-x64`。
+- 仓库是 `agegr/pi-web` 的 **fork**（`lovelyzy7/pi-web`）：所有仓库链接（README 题图 raw 地址、release API URL、`gh --repo`、文档里的链接、`package.json` 的 homepage/repository/bugs）都指向 fork；**npm 包名仍是 `@agegr/pi-web`**，`lib/session-liveness.ts` 里的 `Symbol.for("@agegr/pi-web/…")` 是跨模块 globalThis 键，**永远不要**跟着改。改名发布到自己的 scope 时要同步的位置列在 `docs/release.md`。
+
+### GitHub Actions 在 fork 上的两个默认开关
+- **Actions 默认禁用**：fork 上 `/repos/{owner}/{repo}/actions/workflows` 返回 `total_count: 0`、也不会有任何运行 —— 用户看到的"工作流失败/不出现"多半是这个，而不是 YAML 有问题。要在 Settings → Actions 里确认一次。
+- **Pages 默认未创建**：`/repos/{owner}/{repo}/pages` 返回 404，`actions/deploy-pages` 会以 "Get Pages site failed" 失败。`demo-pages.yml` 用 `actions/configure-pages@v5` 的 `enablement: true` 让第一次运行自动建站，因此工作流必须声明 `pages: write` + `id-token: write`（只有 `contents: read` 时 `configure-pages` 自己就会 403「Resource not accessible by integration」）。
+- `ci.yml` 的 lint 步骤是 `npx eslint . --max-warnings 0`：仓库现在是 0 warning，这条能在 CI 里挡住遗留的未使用 import（本地 `npm run lint` 不会因为 warning 失败，曾因此漏过一个）。
+
 ### 容器里的「项目目录不存在」与提供方报错
 - **「同路径挂载」是硬约束，不是建议**：会话文件里存的是绝对 cwd，容器里少了这个目录，Agent 无法运行、文件浏览器为空、技能/插件读不到项目范围。实测（`pi-web:latest`，两个同级项目会话）：`-v /home/pi_agent_project:/home/pi_agent_project` → 两个项目都 200；`-v /home/pi_agent_project:/workspace` → 两个都 404（换路径等于没挂）；只挂 `-v …/pi-web:/home/pi_agent_project/pi-web` → 本项目 200、兄弟目录（以及 `<仓库>-worktrees/`）仍 404。所以文档一律要求挂**项目父目录**、路径一字不差、读写挂载。
 - **路由文件只能导出处理函数**：`app/api/.../route.ts` 里多导出一个辅助函数（`export function nearestMissingRoot`），`next build` 的 `.next/types` 检查会报 `Type ... does not satisfy the constraint '{ [x: string]: never }'` 而**构建失败** —— `tsc --noEmit` 看不到这一条（类型在构建时才生成），所以「本地类型检查干净」不代表镜像能构建。辅助函数放 `lib/`（这里是 `lib/missing-path.ts`）。

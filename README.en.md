@@ -6,7 +6,7 @@ Local browser UI for the [pi coding agent](https://github.com/earendil-works/pi)
 
 **[Try the interactive demo →](https://agegr.github.io/pi-web/)** The real Pi Web UI runs entirely in your browser, with sample sessions, files and models. There is nothing to install; replies are pre-written and no model is called.
 
-![Pi Web displaying a pi session with structured Markdown, tool calls, and project navigation](https://raw.githubusercontent.com/agegr/pi-web/main/docs/screenshot2.png)
+![Pi Web displaying a pi session with structured Markdown, tool calls, and project navigation](https://raw.githubusercontent.com/lovelyzy7/pi-web/main/docs/screenshot2.png)
 
 ## Features
 
@@ -108,7 +108,12 @@ Password authentication does not encrypt the connection. Do not expose Pi Web ov
 
 ### Docker
 
-A full Ubuntu image with Chinese package mirrors, volume rules, and 1Panel reverse-proxy notes: [docs/docker.md](./docs/docker.md).
+Two Dockerfiles: `Dockerfile` (Chinese mirrors, the default) and `Dockerfile.global` (upstream sources everywhere); they are identical apart from the mirror defaults, and the build detects the VPS architecture (amd64 / arm64 / armhf) on its own. Full Ubuntu image, volume rules, and 1Panel reverse-proxy notes: [docs/docker.md](./docs/docker.md).
+
+```bash
+docker build -t pi-web:latest .                      # inside China
+docker build -f Dockerfile.global -t pi-web:latest . # anywhere else
+```
 
 **The trap worth knowing**: project directories must be mounted at the **same absolute path**, as a **parent directory** (`-v /srv:/srv`). Session files store absolute working directories, so mounting at a different path (`-v /srv/app:/workspace/app`) is the same as not mounting it. Pi Web does not pretend otherwise: the file browser says "directory does not exist: <path>", the skills and plugins sections show the global scope only, and sending a message explains that the session directory is missing on the server. Section 4 of the guide has the three measured mount variants.
 

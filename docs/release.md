@@ -3,9 +3,34 @@
 本仓库每次发布两个产物：
 
 - npm 包：`@agegr/pi-web`
-- GitHub Release：`agegr/pi-web`
+- GitHub Release：`lovelyzy7/pi-web`
 
 请在干净的 `main` 检出目录里按此清单执行。
+
+## 0. Fork 上的一次性设置（CI 与 Demo 失败多半是这两条）
+
+本仓库是 `agegr/pi-web` 的 fork，GitHub 对 fork 有两个默认关闭的开关。**它们不是工作流文件的问题**：工作流“失败”或干脆不出现，通常就是因为在设置里没打开。
+
+1. **启用 Actions**（fork 默认禁用，所以 `/actions/workflows` 是空的、也没有任何运行记录）
+   仓库 → **Settings → Actions → General → Actions permissions** 选 *Allow all actions and reusable workflows* → Save；
+   或打开 **Actions** 标签页，点横幅里的 *I understand my workflows, go ahead and enable them*。
+2. **启用 Pages**（Demo 工作流的部署步骤需要）
+   仓库 → **Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**。
+   也可以不做：工作流里的 `actions/configure-pages@v5` 带 `enablement: true`，第一次运行会自动创建 Pages 站点、把源设为 GitHub Actions（需要 `pages: write`，文件里已经给了）。
+
+确认状态：
+
+```bash
+curl -s https://api.github.com/repos/lovelyzy7/pi-web/actions/workflows | jq '{total: .total_count, state: [.workflows[].state]}'
+curl -s -o /dev/null -w '%{http_code}\n' https://api.github.com/repos/lovelyzy7/pi-web/pages   # 200 = 已启用
+```
+
+启用后 `CI`（lint / 类型检查 / 单元测试 + 构建后的浏览器回归）与 `Demo`（静态演示 → GitHub Pages）都应转绿。两个工作流的内容与上游相同，只有仓库链接指向本 fork。
+
+### npm 包名仍是 `@agegr/pi-web`
+
+仓库链接已改成本 fork，但 **npm 包名没有改**：`@agegr` 是上游的 scope，要改名得把它发布到自己的 scope（例如 `@lovelyzy7/pi-web`），并同步这些位置：`package.json` 的 `name`、`lib/self-update.ts` 里的安装目标、`lib/app-update-service.ts` 的升级提示、README 的 `npx …` 说明、`AGENTS.md` 的容器内更新一节。
+**不要改** `lib/session-liveness.ts` 里的 `Symbol.for("@agegr/pi-web/session-liveness/v1")` —— 那是 globalThis 上的跨模块键，改名会让新旧模块互不认识。不发布自己的包时保持现状即可（`npx @agegr/pi-web@latest` 装的仍是上游包，Docker 镜像则从本仓库源码构建）。
 
 ## 1. 发布前确认
 
@@ -67,7 +92,7 @@ git push origin main --tags
 
 ```bash
 git ls-remote --tags origin v<version>
-gh release view v<version> --repo agegr/pi-web
+gh release view v<version> --repo lovelyzy7/pi-web
 ```
 
 ## 5. 从提交记录生成发布说明
@@ -132,7 +157,7 @@ Prepared from commits in `v<previous>..v<version>`.
 
 ```bash
 gh release create v<version> \
-  --repo agegr/pi-web \
+  --repo lovelyzy7/pi-web \
   --verify-tag \
   --title "v<version>" \
   --notes-file release-notes.md
@@ -142,14 +167,14 @@ gh release create v<version> \
 
 ```bash
 gh release edit v<version> \
-  --repo agegr/pi-web \
+  --repo lovelyzy7/pi-web \
   --notes-file release-notes.md
 ```
 
 也可以用 stdin 传入说明，避免临时文件：
 
 ```bash
-gh release edit v<version> --repo agegr/pi-web --notes-file - <<'EOF'
+gh release edit v<version> --repo lovelyzy7/pi-web --notes-file - <<'EOF'
 ## 中文
 
 ...
@@ -163,7 +188,7 @@ EOF
 ## 7. 最终核对
 
 ```bash
-gh release view v<version> --repo agegr/pi-web
+gh release view v<version> --repo lovelyzy7/pi-web
 npm view @agegr/pi-web@<version> version --registry https://registry.npmjs.org/
 git status --short --branch
 git log --oneline --decorate -3

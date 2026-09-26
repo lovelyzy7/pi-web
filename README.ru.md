@@ -6,7 +6,7 @@
 
 **[Попробовать интерактивное демо →](https://agegr.github.io/pi-web/)** Настоящий интерфейс Pi Web работает прямо в браузере, с примерами сессий, файлов и моделей. Ничего устанавливать не нужно; ответы подготовлены заранее, модели не вызываются.
 
-![Pi Web показывает сессию pi со структурированным Markdown, вызовами инструментов и навигацией по проекту](https://raw.githubusercontent.com/agegr/pi-web/main/docs/screenshot2.png)
+![Pi Web показывает сессию pi со структурированным Markdown, вызовами инструментов и навигацией по проекту](https://raw.githubusercontent.com/lovelyzy7/pi-web/main/docs/screenshot2.png)
 
 ## Возможности
 

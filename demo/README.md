@@ -57,4 +57,11 @@ npm run build    # 静态导出到 out/
 
 ## 部署
 
-`.github/workflows/demo-pages.yml` 在每次推送到 `main` 时构建演示版，并把 `out/` 部署到 GitHub Pages。请在 **Settings → Pages → Source: GitHub Actions** 里启用一次 Pages；站点随后服务于 `https://<owner>.github.io/<repo>/`。
+`.github/workflows/demo-pages.yml` 在每次推送到 `main` 时构建演示版，并把 `out/` 部署到 GitHub Pages。
+
+**fork 上的两个默认开关**（工作流“失败”或不出现基本都是它们）：
+
+1. **Actions 默认禁用**：Settings → Actions → General → *Allow all actions*（或 Actions 标签页横幅里的确认按钮）。
+2. **Pages 需启用一次**：Settings → Pages → Build and deployment → Source 选 **GitHub Actions**。不做也行：工作流里的 `configure-pages` 带 `enablement: true`，第一次运行会自动创建站点。
+
+站点随后服务于 `https://<owner>.github.io/<repo>/`（`PAGES_BASE_PATH` 来自 `configure-pages` 的输出，自定义域名时为空）。
