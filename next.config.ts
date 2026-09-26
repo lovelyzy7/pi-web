@@ -19,6 +19,16 @@ const nextConfig: NextConfig = {
     // up to 100 MB per request, so raise the buffer above that or large uploads
     // are truncated and fail with "Failed to parse body as FormData."
     proxyClientMaxBodySize: "128mb",
+
+    // Low-memory build support (see docs/docker.md): `next build` spawns one
+    // static-generation worker per CPU, and a small VPS then runs every worker
+    // against a tiny V8 heap — the build dies with "JavaScript heap out of
+    // memory" even though nothing is wrong with the source. These two flags
+    // make the worker count follow the available memory and let webpack trade
+    // memory for build time; the Dockerfiles additionally raise the per-process
+    // heap cap (NEXT_BUILD_MAX_OLD_SPACE, default 2048 MB).
+    memoryBasedWorkersCount: true,
+    webpackMemoryOptimizations: true,
   },
   // next/image is only used for the static logo, so the /_next/image optimizer
   // (and its sharp/libheif attack surface, see GHSA-2xp9-vwfh-vxw4) is not needed.

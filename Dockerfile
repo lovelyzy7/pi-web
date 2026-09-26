@@ -9,6 +9,10 @@
 # `armhf`), so the same file builds on x86_64 and ARM VPS alike; the base image
 # and the Node tarball follow it.
 #
+# These files only **build** the image — they never log into a registry and
+# never push or upload the image anywhere. Moving it between machines is a
+# manual `docker save` / `docker load` outside this file.
+#
 # Build (command line, no registry required):
 #   docker build -t pi-web:latest .
 #   docker build -f Dockerfile.global -t pi-web:latest .   # 海外版
@@ -128,6 +132,13 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
 
 COPY . .
 # `next build --webpack`, as package.json defines it.
+#
+# On a low-memory VPS every build worker gets a tiny V8 heap and dies with
+# "JavaScript heap out of memory". next.config.ts sizes the workers by
+# memory; this raises the per-process cap so the surviving ones have room.
+# Lower it for very small machines: --build-arg NEXT_BUILD_MAX_OLD_SPACE=1024.
+ARG NEXT_BUILD_MAX_OLD_SPACE=2048
+ENV NODE_OPTIONS="--max-old-space-size=${NEXT_BUILD_MAX_OLD_SPACE}"
 RUN npm run build
 
 # Drop dev dependencies after the build: the runtime only needs `next`, the pi

@@ -44,6 +44,20 @@ docker build --build-arg NODE_MIRROR=https://nodejs.org/dist -t pi-web:latest .
 
 其他架构会**明确报错**并列出支持项。构建日志里会打印实际选中的组合，例如 `[pi-web] architecture: amd64 -> node-v22.19.0-linux-x64`，另有 `--build-arg NODE_ARCH=<x64|arm64|armv7l>` 供特殊平台手工覆盖。基础镜像 `ubuntu:24.04` 本身是多架构的，`docker build` 会拉取与宿主机匹配的那一份；跨架构构建（例如在 x86 上出 arm64 镜像）用 `docker buildx build --platform linux/arm64`。
 
+### 1.0.2 低内存机器（构建时报 JavaScript heap out of memory）
+
+`next build` 会按 CPU 数开静态生成 worker，小内存 VPS 上每个 worker 分到的 V8 堆很小，于是构建在收集页面数据阶段被 OOM 杀掉（报错形如 `FATAL ERROR: Reached heap limit`）。两个 Dockerfile 已经做了三层缓解：
+
+1. `next.config.ts` 里 `memoryBasedWorkersCount: true` —— worker 数量按内存而不是按 CPU 数决定；
+2. 同处 `webpackMemoryOptimizations: true` —— webpack 用内存换构建时间；
+3. 构建步骤设 `NODE_OPTIONS=--max-old-space-size=2048`（即 `ARG NEXT_BUILD_MAX_OLD_SPACE=2048`），每个进程的堆上限不再卡在 ~500 MB。
+
+机器特别小（≤2 GB）时把上限调小，宁可慢一点也不要触发系统 OOM：
+
+```bash
+docker build --build-arg NEXT_BUILD_MAX_OLD_SPACE=1024 -t pi-web:latest .
+```
+
 ### 1.1 在 VPS 上直接构建（推荐）
 
 ```bash
@@ -66,24 +80,7 @@ docker build -t pi-web:latest --build-arg APT_MIRROR=mirrors.cloud.aliyuncs.com 
 
 Docker Hub 本身也要能拉 `ubuntu:24.04`：在 1Panel「容器 → 配置 → 镜像加速」里填 `https://docker.1panel.live`，或改 `/etc/docker/daemon.json` 的 `registry-mirrors`。若本机 `docker build` 走的是 BuildKit（Docker 23+ 默认），apt/npm 缓存会通过 cache mount 复用，重建明显更快。
 
-### 1.2 本地构建后传到 VPS（VPS 访问不了 GitHub 时）
-
-```bash
-# 本地
-git clone https://github.com/lovelyzy7/pi-web.git && cd pi-web
-docker build -t pi-web:latest .
-docker save pi-web:latest | gzip > pi-web-latest.tar.gz
-scp pi-web-latest.tar.gz root@vps:/root/
-
-# VPS
-gunzip -c /root/pi-web-latest.tar.gz | docker load
-```
-
-注意：`docker save` 的镜像与构建机架构绑定，VPS 是 x86_64 就要在 x86_64 上构建（或加 `--platform linux/amd64` 配合 buildx）。
-
----
-
-### 1.3 构建上下文（`.dockerignore`）
+### 1.2 构建上下文（`.dockerignore`）
 
 `docker build` 会把整个目录发给守护进程，`.dockerignore` 决定发什么。这里刻意只留**构建真正需要的东西**：
 
@@ -357,4 +354,5 @@ docker run -d --name pi-web --restart unless-stopped \
 | 设置 → 技能 / 插件提示「所选项目不在服务器上」 | 同上。全局范围的技能与插件仍会列出，只是没有项目那一半 |
 | 对话里红色「模型服务报错 HTTP 402 … insufficient balance」 | 与挂载无关：模型提供方账号余额不足，充值或换个模型；卡片里的 `request_id` 可给提供方核对 |
 | 容器里 git 报 dubious ownership | 应已由镜像内 `safe.directory '*'` 处理；自定义镜像时记得保留 |
+| `docker build` 在 `next build` 阶段 JavaScript heap out of memory | VPS 内存偏小。先确认是这两个 Dockerfile 的构建（已含 §1.0.2 的三层缓解）；仍不够就 `--build-arg NEXT_BUILD_MAX_OLD_SPACE=1024` 或加大 swap/内存 |
 | SSE 长时间无输出 | 反向代理未关闭 buffering 或超时太短，见第 3 节 |

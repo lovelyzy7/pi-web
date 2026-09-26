@@ -322,11 +322,12 @@ pi 内置的模型列表在 SDK 构建时生成，而 pi-web 固定一个 SDK �
 ### 大文件与忽略范围（`.gitignore` / `.dockerignore`）
 - **两个文件按「用途」排除，不按扩展名一刀切**：`docs/screenshot2.png`（README 的题图，2.1 MB）与主题光标 PNG 都是**有意提交**的资产，所以没有 `*.png` 这类规则。
 - **`.gitignore` 兜底的是「本来就不该进仓库」的东西**：`docker save` 的 `*.tar*`、`npm pack` 的 `*.tgz`、`pi-web-releases/`、SQLite 库与 pi 会话（`*.db*` / `*.sqlite*` / `*.jsonl` —— 又大又含隐私）、Playwright 报告、`*.log`、编辑器与 `*:Zone.Identifier`。改完用 `git ls-files | git check-ignore --stdin -v` 确认**没有误伤已跟踪文件**（应当无输出）。
-- **`.dockerignore` 决定构建上下文**：只留 builder 需要的源码与配置；`demo`/`docs`/`themes`/`AGENTS.md`/README/大产物全部排除。实测上下文 6.3 MB（排除前 >50 MB）。**新增顶层目录时先想一遍要不要进上下文**，验证方法写在 `docs/docker.md` §1.3（只 `COPY` 的临时 Dockerfile 打印 `du -sh /ctx`）。
+- **`.dockerignore` 决定构建上下文**：只留 builder 需要的源码与配置；`demo`/`docs`/`themes`/`AGENTS.md`/README/大产物全部排除。实测上下文 6.3 MB（排除前 >50 MB）。**新增顶层目录时先想一遍要不要进上下文**，验证方法写在 `docs/docker.md` §1.2（只 `COPY` 的临时 Dockerfile 打印 `du -sh /ctx`）。
 - 子项目自带自己的忽略文件（`demo/.gitignore` 覆盖 `demo/node_modules`、`.next`、`out`、`public/demo-files`），根 `.gitignore` 的 `/node_modules` 是**锚定**写法，覆盖不到子目录。
 
 ### 两个 Dockerfile 与架构检测
 - **`Dockerfile`（国内版，默认）与 `Dockerfile.global`（海外版）必须保持只有镜像默认值不同**：`lib/dockerfile-variants.test.mjs` 会把注释与 `ARG NODE_MIRROR / NPM_REGISTRY / PIP_INDEX / APT_MIRROR` 的默认值归一化后逐行比较，改了一个忘了另一个就会红。四个值都可以用 `--build-arg` 覆盖，**空值表示保留上游源**（所以 apt 的 `sed` 重写必须包在 `if [ -n "${mirror}" ]` 里 —— 否则海外版会把 `archive.ubuntu.com` 改写成没配置过的镜像）。
+- **低内存 VPS 的构建 OOM**：`next build` 按 CPU 数开静态生成 worker，小内存机器上每个 worker 的 V8 堆只有 ~500 MB，构建在收集页面数据时 `Reached heap limit`。三层缓解（都已在仓库里）：`next.config.ts` 的 `memoryBasedWorkersCount: true` + `webpackMemoryOptimizations: true`，以及两个 Dockerfile 构建步骤的 `ENV NODE_OPTIONS="--max-old-space-size=${NEXT_BUILD_MAX_OLD_SPACE}"`（`ARG NEXT_BUILD_MAX_OLD_SPACE=2048`，只在 builder 阶段生效，运行时不受影响；≤2 GB 机器用 `--build-arg NEXT_BUILD_MAX_OLD_SPACE=1024`）。改动这三处或新增 docker 构建变量时，`lib/dockerfile-variants.test.mjs` 会检查。
 - **架构自动检测**：`dpkg --print-architecture` → `amd64→x64`、`arm64→arm64`、`armhf→armv7l`，其它组合直接报错并列出 `NODE_ARCH` 覆盖用法；构建日志打印 `[pi-web] architecture: amd64 -> node-v22.19.0-linux-x64`。基础镜像是多架构的，`docker build` 自动取宿主机那一片；跨架构用 `docker buildx --platform`。**不要**在 Dockerfile 里写死 `linux-x64`。
 - 仓库是 `agegr/pi-web` 的 **fork**（`lovelyzy7/pi-web`）：所有仓库链接（README 题图 raw 地址、release API URL、`gh --repo`、文档里的链接、`package.json` 的 homepage/repository/bugs）都指向 fork；**npm 包名仍是 `@agegr/pi-web`**，`lib/session-liveness.ts` 里的 `Symbol.for("@agegr/pi-web/…")` 是跨模块 globalThis 键，**永远不要**跟着改。改名发布到自己的 scope 时要同步的位置列在 `docs/release.md`。
 
