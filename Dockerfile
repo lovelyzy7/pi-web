@@ -201,6 +201,13 @@ COPY --from=builder /opt/pi-web/node_modules ./node_modules
 COPY --from=builder /opt/pi-web/public ./public
 COPY --from=builder /opt/pi-web/bin ./bin
 COPY --from=builder /opt/pi-web/package.json /opt/pi-web/next.config.ts ./
+# The pi CLI ships as a dependency of the app, so it is already in the image —
+# but only `npm run` puts node_modules/.bin on PATH. Link it into /usr/local/bin
+# so `docker exec -it <container> pi` works like any other command.
+# (`timeout` keeps a misbehaving CLI from stalling the build; it must not need
+# the network just to print its version.)
+RUN ln -sf /opt/pi-web/node_modules/.bin/pi /usr/local/bin/pi \
+ && timeout 60 pi --version
 
 ENV NODE_ENV=production \
     PI_WEB_RELEASES_DIR=/opt/pi-web-releases \

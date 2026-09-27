@@ -337,6 +337,7 @@ pi 内置的模型列表在 SDK 构建时生成，而 pi-web 固定一个 SDK �
 - `ci.yml` 的 lint 步骤是 `npx eslint . --max-warnings 0`：仓库现在是 0 warning，这条能在 CI 里挡住遗留的未使用 import（本地 `npm run lint` 不会因为 warning 失败，曾因此漏过一个）。
 
 ### Pi Agent 的安装/更新（设置 → 更新分区）
+- **CLI 的两条 PATH 通路，缺一不可**：镜像里 `RUN ln -sf /opt/pi-web/node_modules/.bin/pi /usr/local/bin/pi`（放在 runtime 阶段**所有 COPY 之后**，否则构建时的 `pi --version` 冒烟检查会因为目标还没进镜像而失败 —— 一开始就放错位置被 `lib/dockerfile-variants.test.mjs` 抓到）；应用内终端面板则由 `lib/terminal-manager.ts` 的 `prependDependencyBin()` 把 `<cwd>/node_modules/.bin` 前置进 PATH（大小写不敏感地找 `PATH`/`Path`，已存在则不重复）。容器不共享宿主机二进制：挂载 `~/.pi/agent` 共享的是数据。
 - **两个东西都叫 pi agent，别混**：**运行时** = `@earendil-works/pi-coding-agent` SDK，会话实际用它，随 pi-web 发布更新，面板只显示版本与 npm 最新版（`lib/pi-agent.ts` 的 `fetchPiLatestVersion`，缓存于 `update_checks` 表 6 小时），**绝不热更** —— pi 0.86 就改过提示词与会话格式，单独换 SDK 会坏。
 - **CLI** = 终端里敲的 `pi` 命令。`POST /api/updates/pi {action: install|update}` 用 `npm install --prefix ~/.pi/agent/pi-cli …` 装进**数据目录**（挂载卷，重建容器不丢），再往 `/usr/local/bin/pi` 放一个尽力而为的符号链接（非 root 失败就忽略，面板显示真实路径）。检测顺序：PATH → 应用自带 `.bin/pi` → 数据目录；`--version` 读版本，30s 超时。
 - **Docker 部署下宿主机不可达**：GET 返回 `deployment.mode`，是 docker 就附带 `hostCommand`（`npm install -g …`）让面板直接显示"宿主机自己执行"，而不是假装容器能替宿主机安装。
@@ -458,3 +459,13 @@ pi 内置的模型列表在 SDK 构建时生成，而 pi-web 固定一个 SDK �
 --terminal-bg --terminal-fg --terminal-cursor --qr-bg
 --font-mono
 ```
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

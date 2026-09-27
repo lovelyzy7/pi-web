@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
+import { existsSync } from "fs";
 import { homedir } from "os";
+import { delimiter, join } from "path";
 import type { IPty } from "node-pty";
 import { samePath } from "./paths";
 
@@ -54,7 +56,34 @@ function shellEnvironment(): Record<string, string> {
   // Windows shells (Git Bash / MSYS2, cmd, PowerShell) otherwise inherit the
   // system ANSI codepage (e.g. GBK on zh-CN) and mangle non-ASCII filenames.
   if (!process.env.LANG && !process.env.LC_ALL && !process.env.LC_CTYPE) env.LANG = "C.UTF-8";
+  prependDependencyBin(env);
   return env;
+}
+
+/**
+ * Puts this install's `node_modules/.bin` on the shell's PATH.
+ *
+ * npm adds that directory for its own scripts, and the image links `pi` into
+ * /usr/local/bin, but a shell started by the server inherits the server's PATH —
+ * so typing `pi` in the terminal panel used to answer "command not found" even
+ * though the CLI ships with the app.
+ *
+ * The variable is matched case-insensitively because Windows uses `Path`.
+ */
+function prependDependencyBin(env: Record<string, string>): void {
+  let binDir: string;
+  try {
+    binDir = join(process.cwd(), "node_modules", ".bin");
+    if (!existsSync(binDir)) return;
+  } catch {
+    return;
+  }
+
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === "path");
+  const current = pathKey ? env[pathKey] : "";
+  const entries = current.split(delimiter).filter(Boolean);
+  if (entries.includes(binDir)) return;
+  env[pathKey ?? "PATH"] = [binDir, ...entries].join(delimiter);
 }
 
 function emit(record: TerminalRecord, event: TerminalEvent): void {

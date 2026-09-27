@@ -325,7 +325,15 @@ docker run -d ... # 与首次启动相同的参数
 npm install -g @earendil-works/pi-coding-agent@latest   # 在宿主机上执行
 ```
 
-检测顺序：PATH 上的 `pi` → 应用自带的 `node_modules/.bin/pi` → 数据目录里的安装；「更新 pi CLI」在版本落后于 npm 最新版时可用。CLI 更新不影响运行中会话（会话用的是运行时 SDK）。
+**镜像里的 `pi` 已经在 PATH 上**：runtime 阶段会把自带的 CLI 链到 `/usr/local/bin/pi`（构建时用 `pi --version` 做冒烟检查），所以
+
+```bash
+docker exec -it pi-web pi --version     # 直接可用，不用记 node_modules 的路径
+```
+
+**应用内终端面板同样可用**：面板里的 shell 由服务端启动，它会把自己安装目录的 `node_modules/.bin` 前置进 `PATH`（`lib/terminal-manager.ts` 的 `shellEnvironment()`），因此不重建镜像也能在面板终端里直接敲 `pi`。`docker exec` 依赖镜像里的那条符号链接。
+
+检测顺序：PATH 上的 `pi` → 应用自带的 `node_modules/.bin/pi` → 数据目录里的安装；「更新 pi CLI」在版本落后于 npm 最新版时可用。CLI 更新不影响运行中会话（会话用的是运行时 SDK）。**宿主机**上的 `pi` 与容器无关：容器有自己的文件系统与 PATH，挂载 `~/.pi/agent` 共享的是数据（会话、凭据、设置）而不是二进制；要在宿主机用 `pi`，在宿主机执行 `npm install -g @earendil-works/pi-coding-agent@latest`。
 
 ### 7.2 容器内更新（可选，不重建容器）
 
